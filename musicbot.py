@@ -44,13 +44,15 @@ def check_queue(omsg, loopd=None):
     if SLOOP.get(omsg.guild.id) and loopd: queues[omsg.guild.id].insert(0, loopd)
     if omsg.guild.id in queues and len(queues[omsg.guild.id]) > 0: asyncio.run_coroutine_threadsafe(play_song(queues[omsg.guild.id][0][0]), bot.loop)
     else:
-        async def handle_song_selection():
+        async def handle_song_selection(omsg):
             def ucs(m): return m.content.startswith(f"{prefix}play ") or m.content.startswith(f"{prefix}p ") or m.content.startswith(f"{prefix}search ")
             try: await bot.wait_for("message", timeout=stay_time, check=ucs)
             except asyncio.TimeoutError:
                 voice_client = discord.utils.get(bot.voice_clients, guild=omsg.guild)
-                if voice_client and voice_client.is_connected(): asyncio.run_coroutine_threadsafe(voice_client.disconnect(), bot.loop)
-        asyncio.run_coroutine_threadsafe(handle_song_selection(), bot.loop)
+                if voice_client and voice_client.is_connected():
+                    asyncio.run_coroutine_threadsafe(omsg.channel.send(f"{stay_time}초 동안 곡 재생 명령이 없으므로 음성 채널을 떠남."), bot.loop)
+                    asyncio.run_coroutine_threadsafe(voice_client.disconnect(), bot.loop)
+        asyncio.run_coroutine_threadsafe(handle_song_selection(omsg), bot.loop)
 async def play_song(msg):
     voice_client = discord.utils.get(bot.voice_clients, guild=msg.guild)
     if not voice_client: #봇이 음성 채널에 연결되지 않았다면 연결
