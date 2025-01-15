@@ -71,8 +71,8 @@ async def play_song(msg):
         }
         with YoutubeDL(ydl_opts) as ydl: info = ydl.extract_info(d[1], download=False)
         voice_client.play(
-            discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(info["url"], before_options="-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 0"), volume=SVOL[msg.guild.id] / 100),
-            after=lambda e: check_queue(msg, d)
+            discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(info["url"], before_options="-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 1"), volume=SVOL[msg.guild.id] / 100),
+            after=lambda e: check_queue(msg, d) if not e else msg.reply(f"ERROR!\n\n{e}")
         )
         NP[msg.guild.id][3] = time()
         if not SLOOP.get(msg.guild.id): return await msg.reply(f"재생 중: [{d[2]['channel']} - {d[2]['title']}]({d[2]['url']}) ({culc_length(d[2]['duration'])})")
