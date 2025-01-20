@@ -8,11 +8,14 @@ from config import conf
 import asyncio
 import random
 from time import time, localtime, strftime
+import datetime
 from yt_dlp import YoutubeDL
 import traceback
 import re
 import random
 import lyricsgenius
+import requests as rqso
+import os
 
 st = int(time())
 conf = conf("config.json")
@@ -20,10 +23,12 @@ token = conf["DISCORD_BOT_TOKEN"]
 prefix = conf["PREFIX"]
 YTApiKey = conf["YOUTUBE_API_KEY"]
 GENIUSAccessToken = conf["GENIUS_ACCESS_TOKEN"]
+AAR = conf["AUDIO_AUTO_REMOVE"]
 MPS = conf["MAX_PLAYLIST_SIZE"]
 stay_time = conf["STAY_TIME"]
 vol = conf["DEFAULT_VOLUME"]
 
+if not os.path.isdir("audio"): os.mkdir("audio") #os.system("rd /s /q audio"); os.mkdir("audio")
 intents = discord.Intents.default()
 intents.typing = intents.presences = False
 intents.messages = intents.message_content = intents.guild_messages = intents.members = intents.guilds = intents.guild_messages = intents.voice_states = True
@@ -31,7 +36,11 @@ bot = discord.Client(intents=intents)
 BotOwner = None
 
 async def fetchOwner(): global BotOwner; BotOwner = await bot.fetch_user(399535550832443392)
+async def requests(url): return rqso.get(url, headers={"Range": "bytes=0-"}, timeout=5, verify=False)
 def exceptionE(msg=""): e = traceback.format_exc(); log.error(f"{msg} \n{e}"); return e
+def windowsPath(path):
+    for a in ['<','>',':','"','/','\\','|','?','*']: path = path.replace(a, "_")
+    return path
 
 def culc_length(l):
     h = "{0:02d}".format(int(l // 60 // 60))
@@ -49,7 +58,7 @@ def check_queue(omsg, loopd=None):
             try: await bot.wait_for("message", timeout=stay_time, check=ucs)
             except asyncio.TimeoutError:
                 voice_client = discord.utils.get(bot.voice_clients, guild=omsg.guild)
-                if voice_client and voice_client.is_connected():
+                if voice_client and not voice_client.is_playing() and voice_client.is_connected():
                     asyncio.run_coroutine_threadsafe(omsg.channel.send(f"{stay_time}초 동안 곡 재생 명령이 없으므로 음성 채널을 떠남."), bot.loop)
                     asyncio.run_coroutine_threadsafe(voice_client.disconnect(), bot.loop)
         asyncio.run_coroutine_threadsafe(handle_song_selection(omsg), bot.loop)
@@ -62,6 +71,7 @@ async def play_song(msg):
     if not voice_client.is_playing():
         d = queues[msg.guild.id].pop(0); NP[msg.guild.id] = d + [0]
         ydl_opts = {
+            "nocheckcertificate": True,
             "format": "bestaudio/best",
             "postprocessors": [{
                 "key": "FFmpegExtractAudio",
@@ -69,15 +79,32 @@ async def play_song(msg):
                 "preferredquality": "192",
             }]
         }
-        with YoutubeDL(ydl_opts) as ydl: info = ydl.extract_info(d[1], download=False)
+        surl = f"audio/{d[2]['id']}"; before_options = ""
+        if not os.path.isfile(surl):
+            with YoutubeDL(ydl_opts) as ydl: info = ydl.extract_info(d[1], download=False)
+            r = await requests(info["url"]) #음원 직접 반환 링크
+            if r.status_code == 403:
+                try: await msg.reply(f"[{r.status_code}]({info['url']}) | {r.text}\ngooglevideo 에서 해당 오류코드로 인하여 `{d[2]['id']}` 곡은 .m3u8 --> .ts 로 변환하여 로컬에서 송출 예정!")
+                except: await msg.channel.send(f"[{r.status_code}]({info['url']}) | {r.text}\ngooglevideo 에서 해당 오류코드로 인하여 `{d[2]['id']}` 곡은 .m3u8 --> .ts 로 변환하여 로컬에서 송출 예정!")
+                for i in info["formats"]:
+                    if i['audio_ext'] == "mp4":
+                        ts = b""; m3u8 = await requests(i["url"]) #403 에러로 인하여 .ts 링크가 저장되어 있는 m3u8링크
+                        for u in m3u8.text.split("\n"):
+                            if u.startswith("http"): u = await requests(u); ts += u.content
+                        with open(surl, 'wb') as f: f.write(ts); break
+            else:
+                surl = info["url"]; before_options="-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 1"
+                weba = await requests(surl)
+                with open(f"audio/{d[2]['id']}", 'wb') as f: f.write(weba.content)
         voice_client.play(
-            discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(info["url"], before_options="-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 1"), volume=SVOL[msg.guild.id] / 100),
+            discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(surl, before_options=before_options), volume=SVOL[msg.guild.id] / 100),
             after=lambda e: check_queue(msg, d) if not e else msg.reply(f"ERROR!\n\n{e}")
         )
         NP[msg.guild.id][3] = time()
         if not SLOOP.get(msg.guild.id): return await msg.reply(f"재생 중: [{d[2]['channel']} - {d[2]['title']}]({d[2]['url']}) ({culc_length(d[2]['duration'])})")
 async def search_song(msg, search_query):
     ydl_opts = {
+        "nocheckcertificate": True,
         "format": "bestaudio/best",
         "noplaylist": True,
         "quiet": True,
@@ -88,6 +115,17 @@ async def search_song(msg, search_query):
         if "entries" not in search_results or len(search_results["entries"]) == 0: return await msg.reply(f"{search_query} <-- 검색 결과가 없습니다!")
         else: return search_results["entries"]
 
+# 주기적으로 0시를 체크하는 태스크
+@tasks.loop(seconds=1)
+async def check_midnight():
+    now = datetime.datetime.now()
+    if AAR and now.hour == 0 and now.minute == 0 and now.second == 0:
+        # 0시에 실행할 작업을 여기에 추가
+        for i in os.listdir("audio"):
+            try: os.remove(f"audio/{i}"); log.info(f"audio/{i} 파일 삭제 완료!")
+            except PermissionError: pass
+            except: exceptionE()
+
 # 봇이 준비되었을 때 실행되는 이벤트 핸들러
 @bot.event
 async def on_ready():
@@ -97,6 +135,7 @@ async def on_ready():
         name='"음악 전용" 봇 모드로 실행중!!'
     ))
     await fetchOwner()
+    check_midnight.start()
     #for guild in bot.guilds: #봇이 로그인하고 난 후, 모든 채널을 순회하며 메시지를 가져옵니다.
     #    for channel in guild.text_channels: channel.history(limit=100)
 
@@ -190,7 +229,7 @@ async def on_message(msg, isEdited=False):
         now = culc_length(time() - NP[msg.guild.id][3])
         total = culc_length(int(d['duration']))
         msg = await msg.reply(f"{d['channel']} - {d['title']} | {now}/{total} | [Youtube]({d['url']})")
-        while time() - NP[msg.guild.id][3] <= d['duration']:
+        while time() - NP[msg.guild.id][3] <= d['duration'] and voice_client.is_playing():
             now = culc_length(time() - NP[msg.guild.id][3])
             await msg.edit(content=f"{d['channel']} - {d['title']} | {now}/{total} | [Youtube]({d['url']})")
             await asyncio.sleep(1)
@@ -279,7 +318,6 @@ async def on_message(msg, isEdited=False):
 
     if msg.content == f"{prefix}lyrics" or msg.content == f"{prefix}ly":
         genius = lyricsgenius.Genius(GENIUSAccessToken)
-        log.debug(f"title = {NP[msg.guild.id][2]['title']}")
         song = genius.search_song(NP[msg.guild.id][2]['title'])
         ly = song.lyrics if song else f"title : `{NP[msg.guild.id][2]['title']}`\n\n가사를 찾을 수 없습니다."
         await msg.reply(ly)
@@ -340,9 +378,9 @@ async def on_message(msg, isEdited=False):
         )
         embed.set_author(name=bot.user, icon_url=bot.user.avatar.url)
         embed.set_thumbnail(url=bot.user.avatar.url)
-        embed.add_field(name=f"0. 생성취소", value="링크 생성을 취소합니다. (또는 30초 경과시 자동 취소됨)", inline=False)
         embed.add_field(name=f"1. Administrator", value="관리자 권한으로 초대링크 생성됨 (8)", inline=False)
         embed.add_field(name=f"2. 메시지 전송 및 관리, 음성채팅 연결 및 말하기", value="해당 권한으로 초대링크 생성됨 (277028562944)", inline=False)
+        embed.add_field(name=f"0. 생성취소", value="링크 생성을 취소합니다. (또는 30초 경과시 자동 취소됨)", inline=False)
 
         embed.timestamp = msg.created_at
         embed.set_footer(text=f"Made By {BotOwner.name}", icon_url=BotOwner.avatar.url)
@@ -354,9 +392,9 @@ async def on_message(msg, isEdited=False):
             idx = int(umsg.content)
             await srmsg.delete(); await umsg.delete()
             if idx == 0: return
-            elif idx == 1: perm = 8
-            elif idx == 2: perm = 277028562944
-            return await msg.reply(f"https://discord.com/api/oauth2/authorize?client_id={bot.user.id}&permissions={perm}&scope=bot+applications.commands")
+            elif idx == 1: perm = 8; pt = "관리자"
+            elif idx == 2: perm = 277028562944; pt = "메시지 전송 및 관리, 음성채팅 연결 및 말하기"
+            return await msg.reply(f"{pt} 권한으로 링크 생성 완료!\nhttps://discord.com/api/oauth2/authorize?client_id={bot.user.id}&permissions={perm}&scope=bot+applications.commands")
         except asyncio.TimeoutError: await msg.reply("곡 선택 시간이 초과되었습니다. 다시 시도해주세요!"); await srmsg.delete(); return
 
 # Ping 명령어
