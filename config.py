@@ -23,4 +23,4 @@ def conf(filename: str="config.json") -> dict:
                 }, indent=2
             )
         )
-        exit()
+        input(f"생성된 {filename} 파일을 수정하세요!"); exit()
