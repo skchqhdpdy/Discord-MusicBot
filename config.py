@@ -16,6 +16,7 @@ def conf(filename: str="config.json") -> dict:
                     "PREFIX": "!",
                     "YOUTUBE_API_KEY": "GET TO https://console.cloud.google.com/apis/library/youtube.googleapis.com",
                     "GENIUS_ACCESS_TOKEN": "GET TO https://genius.com/api-clients",
+                    "AUDIO_AUTO_REMOVE": False,
                     "MAX_PLAYLIST_SIZE": 20,
                     "STAY_TIME": 300,
                     "DEFAULT_VOLUME": 20

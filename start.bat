@@ -1,3 +1,3 @@
 title À½¾Çº¿
-venv\Scripts\python.exe musicbot.py
+Python312\python312.exe musicbot.py
 pause
