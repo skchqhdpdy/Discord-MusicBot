@@ -66,7 +66,7 @@ async def play_song(msg):
     voice_client = discord.utils.get(bot.voice_clients, guild=msg.guild)
     if not voice_client: #봇이 음성 채널에 연결되지 않았다면 연결
         if msg.author.voice: voice_client = await msg.author.voice.channel.connect()
-        else: return await msg.reply("음성 채널에 먼저 접속해주세요!")
+        else: queues[msg.guild.id].pop(0); return await msg.reply("음성 채널에 먼저 접속해주세요!")
     if not SVOL.get(msg.guild.id): SVOL[msg.guild.id] = vol
     if not voice_client.is_playing():
         d = queues[msg.guild.id].pop(0); NP[msg.guild.id] = d + [0]
