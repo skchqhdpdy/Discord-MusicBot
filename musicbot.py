@@ -16,6 +16,7 @@ import random
 import lyricsgenius
 import requests as rqso
 import os
+import threading
 
 st = int(time())
 conf = conf("config.json")
@@ -23,6 +24,7 @@ token = conf["DISCORD_BOT_TOKEN"]
 prefix = conf["PREFIX"]
 YTApiKey = conf["YOUTUBE_API_KEY"]
 GENIUSAccessToken = conf["GENIUS_ACCESS_TOKEN"]
+isDLSong = conf["AUDIO_DOWNLOAD"]
 AAR = conf["AUDIO_AUTO_REMOVE"]
 MPS = conf["MAX_PLAYLIST_SIZE"]
 stay_time = conf["STAY_TIME"]
@@ -88,10 +90,14 @@ async def play_song(msg):
                 except: await msg.channel.send(f"[{r.status_code}]({info['url']}) | {r.text}\ngooglevideo 에서 해당 오류코드로 인하여 `{d[2]['id']}` 곡은 .m3u8 --> .ts 로 변환하여 로컬에서 송출 예정!")
                 for i in info["formats"]:
                     if i['audio_ext'] == "mp4":
-                        ts = b""; m3u8 = await requests(i["url"]) #403 에러로 인하여 .ts 링크가 저장되어 있는 m3u8링크
-                        for u in m3u8.text.split("\n"):
-                            if u.startswith("http"): u = await requests(u); ts += u.content
-                        with open(surl, 'wb') as f: f.write(ts); break
+                        if isDLSong: #곡 다운로드
+                            def dlsong():
+                                st = time(); ts = b""; m3u8 = rqso.get(i["url"], headers={"Range": "bytes=0-"}, timeout=5, verify=False) #403 에러로 인하여 .ts 링크가 저장되어 있는 m3u8링크
+                                for u in m3u8.text.split("\n"):
+                                    if u.startswith("http"): u = rqso.get(u, headers={"Range": "bytes=0-"}, timeout=5, verify=False); ts += u.content
+                                with open(f"audio/{d[2]['id']}", 'wb') as f: f.write(ts); log.info(f"{d[2]['url']} 다운로드 완료! | {round(time() - st, 2)} Sec")
+                            threading.Thread(target=dlsong).start()
+                        surl = i["url"]; before_options="-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 1"; break
             else:
                 surl = info["url"]; before_options="-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 1"
                 weba = await requests(surl)
@@ -102,7 +108,7 @@ async def play_song(msg):
         )
         NP[msg.guild.id][3] = time()
         if not SLOOP.get(msg.guild.id): return await msg.reply(f"재생 중: [{d[2]['channel']} - {d[2]['title']}]({d[2]['url']}) ({culc_length(d[2]['duration'])})")
-async def search_song(msg, search_query):
+async def search_song(msg, search_query, isplayCommand=False):
     ydl_opts = {
         "nocheckcertificate": True,
         "format": "bestaudio/best",
@@ -112,7 +118,7 @@ async def search_song(msg, search_query):
     }
     with YoutubeDL(ydl_opts) as ydl:
         search_results = ydl.extract_info(f"ytsearch10:{search_query}", download=False)
-        if "entries" not in search_results or len(search_results["entries"]) == 0: return await msg.reply(f"{search_query} <-- 검색 결과가 없습니다!")
+        if "entries" not in search_results or len(search_results["entries"]) == 0: return await msg.reply(f"{search_query} <-- 검색 결과가 없습니다!") if not isplayCommand else [{"id":search_query[-11:],"channel":"?","title":"?","url":search_query,"duration":0}]
         else: return search_results["entries"]
 
 # 주기적으로 0시를 체크하는 태스크
@@ -169,7 +175,7 @@ async def on_message(msg, isEdited=False):
         if not re.match(YTURLPT, url): return await msg.reply(f"유효한 YouTube 링크를 입력해주세요! 예: `{prefix}play [YouTube URL]`")
         if msg.guild.id not in queues: queues[msg.guild.id] = []
         else: await msg.reply(f"{len(queues[msg.guild.id]) + 1}번 | 대기열 추가 완료!")
-        si = await search_song(msg, url)
+        si = await search_song(msg, url, isplayCommand = True)
         queues[msg.guild.id].append([msg, url, si[0]]) #queues
         return await play_song(msg)
 
