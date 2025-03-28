@@ -84,7 +84,9 @@ async def play_song(msg):
             }]
         }
         surl = f"audio/{d[2]['id']}"; before_options = ""
-        if not os.path.isfile(surl):
+        if os.path.isfile(f"{surl}.ts"): surl += ".ts"
+        elif os.path.isfile(surl): pass
+        else:
             with YoutubeDL(ydl_opts) as ydl: info = ydl.extract_info(d[1], download=False)
             r = await requests(info["url"]) #음원 직접 반환 링크
             if r.status_code == 403:
@@ -127,8 +129,9 @@ async def search_song(msg, search_query, isplayCommand=False):
         "extract_flat": True
     }
     with YoutubeDL(ydl_opts) as ydl:
-        search_results = ydl.extract_info(f"ytsearch10:{search_query}", download=False)
-        if "entries" not in search_results or len(search_results["entries"]) == 0: return await msg.reply(f"{search_query} <-- 검색 결과가 없습니다!") if not isplayCommand else [{"id":video_id,"channel":"?","title":"?","url":search_query,"duration":0}]
+        search_results = ydl.extract_info(f"ytsearch10:{video_id}", download=False)
+        YTtemple = [{"id":video_id, "channel":"?", "title":"?", "url":search_query, "duration":0, "thumbnails":[{"url":"https://a.redstar.moe/-404.png"}]}]
+        if "entries" not in search_results or len(search_results["entries"]) == 0: return await msg.reply(f"{video_id} <-- 검색 결과가 없습니다!") if not isplayCommand else YTtemple
         else: return search_results["entries"]
 
 # 주기적으로 0시를 체크하는 태스크
