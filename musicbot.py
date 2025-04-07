@@ -29,6 +29,7 @@ AAR = conf["AUDIO_AUTO_REMOVE"]
 MPS = conf["MAX_PLAYLIST_SIZE"]
 stay_time = conf["STAY_TIME"]
 vol = conf["DEFAULT_VOLUME"]
+BotOwnerID = conf["BotOwnerID"]
 
 if not os.path.isdir("audio"): os.mkdir("audio") #os.system("rd /s /q audio"); os.mkdir("audio")
 intents = discord.Intents.default()
@@ -37,7 +38,7 @@ intents.messages = intents.message_content = intents.guild_messages = intents.me
 bot = discord.Client(intents=intents)
 BotOwner = None
 
-async def fetchOwner(): global BotOwner; BotOwner = await bot.fetch_user(399535550832443392)
+async def fetchOwner(): global BotOwner; BotOwner = await bot.fetch_user(BotOwnerID)
 async def requests(url): return rqso.get(url, headers={"Range": "bytes=0-"}, timeout=5, verify=False)
 def exceptionE(msg=""): e = traceback.format_exc(); log.error(f"{msg} \n{e}"); return e
 def windowsPath(path):
@@ -96,12 +97,13 @@ async def play_song(msg):
                     if i['audio_ext'] == "mp4": surl = i["url"]; before_options="-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 1"; break
             else: surl = info["url"]; before_options="-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 1"
 
-            def dlsongTs(): #해당 함수는 403 뜰때 정상 다운되는지 확인해보기
-                st = time(); ts = b""; m3u8 = rqso.get(info["url"], headers={"Range": "bytes=0-"}, timeout=5, verify=False) #403 에러로 인하여 .ts 링크가 저장되어 있는 m3u8링크
-                for u in m3u8.text.split("\n"):
-                    if u.startswith("http"): u = rqso.get(u, headers={"Range": "bytes=0-"}, timeout=5, verify=False); ts += u.content
-                with open(f"audio/{d[2]['id']}.ts", 'wb') as f: f.write(ts); log.debug(f"{d[2]['url']} 다운로드 완료! | {round(time() - st, 2)} Sec")
-            threading.Thread(target=dlsongTs).start()
+            if isDLSong:
+                def dlsongTs(): #해당 함수는 403 뜰때 정상 다운되는지 확인해보기
+                    st = time(); ts = b""; m3u8 = rqso.get(info["url"], headers={"Range": "bytes=0-"}, timeout=5, verify=False) #403 에러로 인하여 .ts 링크가 저장되어 있는 m3u8링크
+                    for u in m3u8.text.split("\n"):
+                        if u.startswith("http"): u = rqso.get(u, headers={"Range": "bytes=0-"}, timeout=5, verify=False); ts += u.content
+                    with open(f"audio/{d[2]['id']}.ts", 'wb') as f: f.write(ts); log.debug(f"{d[1]} 다운로드 완료! | {round(time() - st, 2)} Sec")
+                threading.Thread(target=dlsongTs).start()
             for i in info["formats"]:
                 if i['audio_ext'] == "mp4":
                     if isDLSong: #곡 다운로드
@@ -109,7 +111,7 @@ async def play_song(msg):
                             st = time(); ts = b""; m3u8 = rqso.get(i["url"], headers={"Range": "bytes=0-"}, timeout=5, verify=False) #403 에러로 인하여 .ts 링크가 저장되어 있는 m3u8링크
                             for u in m3u8.text.split("\n"):
                                 if u.startswith("http"): u = rqso.get(u, headers={"Range": "bytes=0-"}, timeout=5, verify=False); ts += u.content
-                            with open(f"audio/{d[2]['id']}", 'wb') as f: f.write(ts); log.info(f"{d[2]['url']} 다운로드 완료! | {round(time() - st, 2)} Sec")
+                            with open(f"audio/{d[2]['id']}", 'wb') as f: f.write(ts); log.info(f"{d[1]} 다운로드 완료! | {round(time() - st, 2)} Sec")
                         threading.Thread(target=dlsong).start(); break
 
         voice_client.play(
@@ -117,7 +119,7 @@ async def play_song(msg):
             after=lambda e: check_queue(msg, d) if not e else msg.reply(f"ERROR!\n\n{e}")
         )
         NP[msg.guild.id][3] = time()
-        if not SLOOP.get(msg.guild.id): return await msg.reply(f"재생 중: [{d[2]['channel']} - {d[2]['title']}]({d[2]['url']}) ({culc_length(d[2]['duration'])})")
+        if not SLOOP.get(msg.guild.id): return await msg.reply(f"재생 중: [{d[2]['channel']} - {d[2]['title']}]({d[1]}) ({culc_length(d[2]['duration'])})")
 async def search_song(msg, search_query, isplayCommand=False):
     YTURLPT = r"(https?://)?(www\.)?(m\.)?(youtube\.com/(watch\?v=|shorts/)|youtu\.be/)(?P<video_id>[\w-]{11})"
     match = re.match(YTURLPT, search_query); video_id = match.group("video_id") if match else search_query[-11:]
@@ -128,12 +130,16 @@ async def search_song(msg, search_query, isplayCommand=False):
         "quiet": True,
         "extract_flat": True
     }
-    with YoutubeDL(ydl_opts) as ydl:
-        search_results = ydl.extract_info(f"ytsearch10:{video_id}", download=False)
-        YTtemple = [{"id":video_id, "channel":"?", "title":"?", "url":search_query, "duration":0, "thumbnails":[{"url":"https://a.redstar.moe/-404.png"}]}]
-        if "entries" not in search_results or len(search_results["entries"]) == 0: return await msg.reply(f"{video_id} <-- 검색 결과가 없습니다!") if not isplayCommand else YTtemple
-        else: return search_results["entries"]
-
+    if not isplayCommand:
+        with YoutubeDL(ydl_opts) as ydl:
+            search_results = ydl.extract_info(f"ytsearch10:{video_id}", download=False)
+            if "entries" not in search_results or len(search_results["entries"]) == 0: return await msg.reply(f"{video_id} <-- 검색 결과가 없습니다!")
+            else: return search_results["entries"]
+    else:
+        with YoutubeDL(ydl_opts) as ydl:
+            search_results = ydl.extract_info(search_query, download=False)
+            YTtemple = [{"id":video_id, "channel":"?", "title":"?", "url":search_query, "duration":0, "thumbnails":[{"url":"https://a.redstar.moe/-404.png"}]}]
+            return [search_results] if search_results else YTtemple
 # 주기적으로 0시를 체크하는 태스크
 @tasks.loop(seconds=1)
 async def check_midnight():
@@ -216,8 +222,8 @@ async def on_message(msg, isEdited=False):
             num = int(msg.content.split()[1])
             if not queues.get(msg.guild.id): return await msg.reply("재생 중인 음악이 없습니다.")
             elif len(queues[msg.guild.id]) < num or num <= 0: return await msg.reply(f"대기열에 {num}번은 존재하지 않습니다. (1~{len(queues[msg.guild.id])})")
-            d = queues[msg.guild.id].pop(num - 1)[2]
-            await msg.reply(f"Removed | {num}. {d['channel']} - {d['title']} ({culc_length(d['duration'])}) [Youtube]({d['url']})")
+            d = queues[msg.guild.id].pop(num - 1)
+            await msg.reply(f"Removed | {num}. {d[2]['channel']} - {d[2]['title']} ({culc_length(d[2]['duration'])}) [Youtube]({d[1]})")
             msg.content = f"{prefix}q"; return await on_message(msg, isEdited=True)
         except ValueError: return await msg.reply(f"숫자를 입력해주세요! 예: `{prefix}skip 2`")
         except: return await msg.reply(f"에러 발생!\n{exceptionE()}")
@@ -233,7 +239,7 @@ async def on_message(msg, isEdited=False):
             embed.set_author(name=bot.user, icon_url=bot.user.avatar.url)
             embed.set_thumbnail(url=queues[msg.guild.id][num-1][2]["thumbnails"][0]["url"])
             for i in range(num):
-                d = queues[msg.guild.id].pop(0)[2]; embed.add_field(name=f"Removed | {i+1}. {d['channel']} - {d['title']} ({culc_length(d['duration'])})", value=f"[Youtube]({d['url']})", inline=False)
+                d = queues[msg.guild.id].pop(0); embed.add_field(name=f"Removed | {i+1}. {d[2]['channel']} - {d[2]['title']} ({culc_length(d[2]['duration'])})", value=f"[Youtube]({d[1]})", inline=False)
             embed.timestamp = msg.created_at
             embed.set_footer(text=f"Made By {BotOwner.name}", icon_url=BotOwner.avatar.url)
             await msg.reply(embed=embed)
@@ -244,13 +250,13 @@ async def on_message(msg, isEdited=False):
     if msg.content == f"{prefix}np":
         voice_client = discord.utils.get(bot.voice_clients, guild=msg.guild)
         if not voice_client or not voice_client.is_playing(): return await msg.reply("현재 재생 중인 음악이 없습니다!")
-        d = NP[msg.guild.id][2]
+        d = NP[msg.guild.id]
         now = culc_length(time() - NP[msg.guild.id][3])
-        total = culc_length(int(d['duration']))
-        msg = await msg.reply(f"{d['channel']} - {d['title']} | {now}/{total} | [Youtube]({d['url']})")
-        while time() - NP[msg.guild.id][3] <= d['duration'] and voice_client.is_playing():
+        total = culc_length(int(d[2]['duration']))
+        msg = await msg.reply(f"{d[2]['channel']} - {d[2]['title']} | {now}/{total} | [Youtube]({d[1]})")
+        while time() - NP[msg.guild.id][3] <= d[2]['duration'] and voice_client.is_playing():
             now = culc_length(time() - NP[msg.guild.id][3])
-            await msg.edit(content=f"{d['channel']} - {d['title']} | {now}/{total} | [Youtube]({d['url']})")
+            await msg.edit(content=f"{d[2]['channel']} - {d[2]['title']} | {now}/{total} | [Youtube]({d[1]})")
             await asyncio.sleep(1)
 
     if msg.content == f"{prefix}queue" or msg.content == f"{prefix}q":
@@ -262,7 +268,7 @@ async def on_message(msg, isEdited=False):
         embed.set_author(name=bot.user, icon_url=bot.user.avatar.url)
         embed.set_thumbnail(url=queues[msg.guild.id][0][2]["thumbnails"][0]["url"])
         for i, d in enumerate(queues[msg.guild.id]):
-            d = d[2]; embed.add_field(name=f"{i+1}. {d['channel']} - {d['title']} ({culc_length(d['duration'])})", value=f"[Youtube]({d['url']})", inline=False)
+            embed.add_field(name=f"{i+1}. {d[2]['channel']} - {d[2]['title']} ({culc_length(d[2]['duration'])})", value=f"[Youtube]({d[1]})", inline=False)
         embed.timestamp = msg.created_at
         embed.set_footer(text=f"Made By {BotOwner.name}", icon_url=BotOwner.avatar.url)
         await msg.reply(embed=embed)
@@ -291,10 +297,10 @@ async def on_message(msg, isEdited=False):
         )
         embed.set_author(name=bot.user, icon_url=bot.user.avatar.url)
         embed.set_thumbnail(url=search_results[0]["thumbnails"][0]["url"])
-        for i, d in enumerate(search_results):
+        for i, sr in enumerate(search_results):
             try:
-                sl.append(d["url"])
-                embed.add_field(name=f"{i+1}. {d['channel']} - {d['title']} ({culc_length(d['duration'])})", value=f"[Youtube]({d['url']})", inline=False)
+                sl.append(sr["url"])
+                embed.add_field(name=f"{i+1}. {sr['channel']} - {sr['title']} ({culc_length(sr['duration'])})", value=f"[Youtube]({sr['url']})", inline=False)
             except: exceptionE(i+1)
         embed.add_field(name=f"0. 검색취소", value=f"{search_query} 검색을 취소합니다. (또는 30초 경과시 자동 취소됨)", inline=False)
         embed.timestamp = msg.created_at
@@ -331,7 +337,7 @@ async def on_message(msg, isEdited=False):
     if msg.content == f"{prefix}loop" or msg.content == f"{prefix}l":
         if not SLOOP.get(msg.guild.id): SLOOP[msg.guild.id] = None
         SLOOP[msg.guild.id] = not SLOOP[msg.guild.id]
-        if SLOOP[msg.guild.id]: d = NP[msg.guild.id][2]; npmsg = f"\n\n{d['channel']} - {d['title']} ({culc_length(d['duration'])}) [Youtube]({d['url']})"
+        if SLOOP[msg.guild.id]: d = NP[msg.guild.id]; npmsg = f"\n\n{d[2]['channel']} - {d[2]['title']} ({culc_length(d[2]['duration'])}) [Youtube]({d[1]})"
         else: npmsg = ""
         await msg.reply(f"loop = {SLOOP[msg.guild.id]}{npmsg}")
 

@@ -14,6 +14,7 @@ def conf(filename: str="config.json") -> dict:
                 {
                     "DISCORD_BOT_TOKEN": "Make BOT First & GET TO https://discord.com/developers/applications",
                     "PREFIX": "!",
+                    "BotOwnerID": 399535550832443392,
                     "YOUTUBE_API_KEY": "GET TO https://console.cloud.google.com/apis/library/youtube.googleapis.com",
                     "GENIUS_ACCESS_TOKEN": "GET TO https://genius.com/api-clients",
                     "AUDIO_DOWNLOAD": True,
