@@ -99,7 +99,7 @@ async def play_song(msg):
             after=lambda e: check_queue(msg, d) if not e else msg.reply(f"ERROR!\n\n{e}")
         )
         NP[msg.guild.id][2] = time()
-        if not SLOOP.get(msg.guild.id): return await msg.reply(f"재생 중: [{d[1]['title']}]({d[1]['YTURL']}) ({culc_length(d[1]['duration'])})")
+        if not SLOOP.get(msg.guild.id): return await msg.reply(f"재생 중: [{d[1]['title']}]({d[1]['YTURL']}) ({culc_length(d[1]['duration'])}) \n[다운로드](https://youtube11.com/{d[1]['YTID']})")
 async def search_song(msg, search_query, isplayCommand=False):
     YTURLPT = r"(https?://)?(www\.)?(m\.)?(youtube\.com/(watch\?v=|shorts/)|youtu\.be/)(?P<video_id>[\w-]{11})(?:&list=(?P<list_id>[\w-]+))?"
     match = re.match(YTURLPT, search_query)
@@ -141,8 +141,7 @@ async def get_playlist_items(msg, list_id):
     }
     try:
         with YoutubeDL(ydl_opts) as ydl: result = ydl.extract_info(f"https://www.youtube.com/playlist?list={list_id}", download=False)
-        entries = result.get("entries", [])
-        return [{"idx": i, "YTID": e["id"], "YTURL": f"https://youtu.be/{e['id']}", "title": f"{e.get('channel')} - {e.get('title')}", "url": f"https://www.youtube.com/watch?v={e['id']}"} for i, e in enumerate(entries) if "id" in e]
+        return [{"idx": i, "YTID": e["id"], "YTURL": f"https://youtu.be/{e['id']}", "title": f"{e.get('channel')} - {e.get('title')}", "url": f"https://www.youtube.com/watch?v={e['id']}"} for i, e in enumerate(result.get("entries", [])) if "id" in e]
     except Exception as e:
         await msg.reply(f"재생목록 불러오기 중 오류 발생: {e}")
         return None
