@@ -210,8 +210,13 @@ async def on_message(msg, isEdited=False):
         else: return await msg.reply(f"재생할 YouTube 링크를 입력해주세요! 예: `{prefix}playlist [YouTube URL]`")
         YTURLPT = r"(https?://)?(www\.)?(m\.)?(youtube\.com/(watch\?v=|shorts/)|youtu\.be/)(?P<video_id>[\w-]{11})(?:&list=(?P<list_id>[\w-]+))?"
         match = re.match(YTURLPT, url)
-        if not match: return await msg.reply(f"유효한 YouTube 링크를 입력해주세요! 예: `{prefix}playlist [YouTube URL]`")
-        video_id = match.group("video_id"); list_id = match.group("list_id")
+        if not match:
+            YTURLPT = r"(?:https?://)?(?:www\.)?(m\.)?youtube\.com/playlist\?list=(?P<list_id>[\w-]+)"
+            match = re.match(YTURLPT, url)
+            if not match: return await msg.reply(f"유효한 YouTube 링크를 입력해주세요! 예: `{prefix}playlist [YouTube URL]`")
+            video_id = None; list_id = match.group("list_id")
+        else: video_id = match.group("video_id"); list_id = match.group("list_id")
+
         playlist = await get_playlist_items(msg, list_id)
         start_index = next((i for i, l in enumerate(playlist) if l['YTID'] == video_id), 0)
         playlist = playlist[start_index:] + playlist[:start_index]
