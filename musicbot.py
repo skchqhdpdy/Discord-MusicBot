@@ -353,7 +353,7 @@ async def on_message(msg, isEdited=False):
         msg.content = f"{prefix}q"; return await on_message(msg, isEdited=True)
     
     if msg.content.startswith(f"{prefix}move ") or msg.content.startswith(f"{prefix}mv "):
-        if len(msg.content.split() < 3): return await msg.reply(f"대상과 위치를 둘 다 입력해주세요! 예: `{prefix}move 2 4`")
+        if len(msg.content.split()) < 3: return await msg.reply(f"대상과 위치를 둘 다 입력해주세요! 예: `{prefix}move 2 4`")
         _, tar, loc = msg.content.split(" ")
         try:
             tar = int(tar); loc = int(loc)
