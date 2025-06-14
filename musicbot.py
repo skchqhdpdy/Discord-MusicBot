@@ -90,12 +90,12 @@ async def play_song(msg):
         if os.path.isfile(surl): log.info(f"{surl} 파일 존재함!")
         else:
             with YoutubeDL({'format': d[1]["auInfo"], 'quiet': True}) as ydl: info = ydl.extract_info(d[1]["YTID"], download=False)
-            surl = info['url']; before_options="-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 1"
+            surl = info['url']; before_options="-protocol_whitelist file,http,https,tcp,tls,crypto -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 1"
             def dlsong():
                 with YoutubeDL(ydl_opts) as ydl: ydl.download(d[1]["YTID"])
-            threading.Thread(target=dlsong).start()
+            if isDLSong: threading.Thread(target=dlsong).start()
         voice_client.play(
-            discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(surl, before_options=before_options), volume=SVOL[msg.guild.id] / 100),
+            discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(surl, executable="ffmpeg/bin/ffmpeg.exe", before_options=before_options), volume=SVOL[msg.guild.id] / 100),
             after=lambda e: check_queue(msg, d) if not e else msg.reply(f"ERROR!\n\n{e}")
         )
         NP[msg.guild.id][2] = time()
