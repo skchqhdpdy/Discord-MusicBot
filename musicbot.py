@@ -22,7 +22,6 @@ st = int(time())
 conf = conf("config.json")
 token = conf["DISCORD_BOT_TOKEN"]
 prefix = conf["PREFIX"]
-YTApiKey = conf["YOUTUBE_API_KEY"]
 GENIUSAccessToken = conf["GENIUS_ACCESS_TOKEN"]
 isDLSong = conf["AUDIO_DOWNLOAD"]
 AAR = conf["AUDIO_AUTO_REMOVE"]
