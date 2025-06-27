@@ -29,6 +29,8 @@ MPS = conf["MAX_PLAYLIST_SIZE"]
 stay_time = conf["STAY_TIME"]
 vol = conf["DEFAULT_VOLUME"]
 BotOwnerID = conf["BotOwnerID"]
+SendErrorLog= conf["SEND_ERROR_LOG"]
+ReplyMention= conf["REPLY_MENTION"]
 
 if not os.path.isdir("audio"): os.mkdir("audio") #os.system("rd /s /q audio"); os.mkdir("audio")
 intents = discord.Intents.default()
@@ -43,6 +45,16 @@ def exceptionE(msg=""): e = traceback.format_exc(); log.error(f"{msg} \n{e}"); r
 def windowsPath(path):
     for a in ['<','>',':','"','/','\\','|','?','*']: path = path.replace(a, "_")
     return path
+
+async def sendErrorLog(msg: discord.message.Message, dmsg: str = None) -> None:
+    if SendErrorLog:
+        await BotOwner.send(f"```py\n{msg}``````py\n{traceback.format_exc()}```\n{msg.content}\ndebugMsg = {dmsg}")
+    else: log.warning(f"에러로그 전송 {SendErrorLog} 상태임")
+    
+async def msgReply(msg: discord.message.Message, obj: str = None, **kwargs) -> None:
+    try: return await msg.reply(obj, **kwargs, mention_author=ReplyMention)
+    except discord.errors.HTTPException: pass
+    except: await sendErrorLog(msg, dmsg="msg.reply 예외처리"); return await msg.channel.send(obj, **kwargs)
 
 def culc_length(l):
     h = "{0:02d}".format(int(l // 60 // 60))
@@ -69,12 +81,13 @@ async def play_song(msg):
     voice_client = discord.utils.get(bot.voice_clients, guild=msg.guild)
     if not voice_client: #봇이 음성 채널에 연결되지 않았다면 연결
         if msg.author.voice: voice_client = await msg.author.voice.channel.connect()
-        else: queues[msg.guild.id].pop(0); return await msg.reply("음성 채널에 먼저 접속해주세요!")
-    elif voice_client and not msg.author.voice: voice_client = queues[msg.guild.id].pop(0); return await msg.reply("음성 채널에 먼저 접속해주세요!")
+        else: queues[msg.guild.id].pop(0); return await msgReply(msg, "음성 채널에 먼저 접속해주세요!")
+    elif voice_client and not msg.author.voice: voice_client = queues[msg.guild.id].pop(0); return await msgReply(msg, "음성 채널에 먼저 접속해주세요!")
     if not SVOL.get(msg.guild.id): SVOL[msg.guild.id] = vol
     if not voice_client.is_playing():
         d = queues[msg.guild.id].pop(0); NP[msg.guild.id] = d + [0]
         ydl_opts = {
+            'cookiesfrombrowser': ('firefox',),
             "nocheckcertificate": True,
             'format': d[1]["auInfo"],
             'outtmpl': f'audio/{d[1]["YTID"]}',
@@ -87,18 +100,30 @@ async def play_song(msg):
         }
         surl = f"audio/{d[1]['YTID']}.mp3"; before_options = ""
         if os.path.isfile(surl): log.info(f"{surl} 파일 존재함!")
+        elif os.path.isfile(surl.replace(".mp3", ".ts")): surl = surl.replace(".mp3", ".ts"); log.info(f"{surl} 파일 존재함!")
         else:
             with YoutubeDL({'format': d[1]["auInfo"], 'quiet': True}) as ydl: info = ydl.extract_info(d[1]["YTID"], download=False)
-            surl = info['url']; before_options="-protocol_whitelist file,http,https,tcp,tls,crypto -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 1"
+            surl = info["url"]; before_options="-protocol_whitelist file,http,https,tcp,tls,crypto -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 1"
             def dlsong():
-                with YoutubeDL(ydl_opts) as ydl: ydl.download(d[1]["YTID"])
+                try:
+                    with YoutubeDL(ydl_opts) as ydl: ydl.download(d[1]["YTID"])
+                except:
+                    asyncio.run_coroutine_threadsafe(sendErrorLog(msg, dmsg="ydl 에서 다운로드 실패함"), bot.loop)
+                    log.info(surl)
+                    log.error(f"`{d[1]['YTID']}` 곡은 .m3u8 --> .ts 로 변환하여 로컬에 저장 예정!")
+                    st = time(); ts = b""; m3u8 = rqso.get(surl, headers={"Range": "bytes=0-"}, timeout=5, verify=False) #403 에러로 인하여 .ts 링크가 저장되어 있는 m3u8링크
+                    for u in m3u8.text.split("\n"):
+                        if u.startswith("http"): u = rqso.get(u, headers={"Range": "bytes=0-"}, timeout=5, verify=False); ts += u.content
+                    if ts:
+                        with open(f"audio/{d[1]['YTID']}.ts", 'wb') as f: f.write(ts); log.debug(f"{d[1]['YTID']} 수동 다운로드 완료! | {round(time() - st, 2)} Sec")
+                    else: asyncio.run_coroutine_threadsafe(sendErrorLog(msg, dmsg=".ts 수동 다운로드도 실패함"), bot.loop)
             if isDLSong: threading.Thread(target=dlsong).start()
         voice_client.play(
             discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(surl, executable="ffmpeg/bin/ffmpeg.exe", before_options=before_options), volume=SVOL[msg.guild.id] / 100),
-            after=lambda e: check_queue(msg, d) if not e else msg.reply(f"ERROR!\n\n{e}")
+            after=lambda e: check_queue(msg, d) if not e else msgReply(msg, f"ERROR!\n\n{e}")
         )
         NP[msg.guild.id][2] = time()
-        if not SLOOP.get(msg.guild.id): return await msg.reply(f"재생 중: [{d[1]['title']}]({d[1]['YTURL']}) ({culc_length(d[1]['duration'])}) \n[다운로드](https://youtube11.com/{d[1]['YTID']})")
+        if not SLOOP.get(msg.guild.id): return await msgReply(msg, f"재생 중: [{d[1]['title']}]({d[1]['YTURL']}) ({culc_length(d[1]['duration'])}) \n[다운로드](https://youtube11.com/{d[1]['YTID']})")
 async def search_song(msg, search_query, isplayCommand=False):
     YTURLPT = r"(https?://)?(www\.)?(m\.)?(youtube\.com/(watch\?v=|shorts/)|youtu\.be/)(?P<video_id>[\w-]{11})(?:&list=(?P<list_id>[\w-]+))?"
     match = re.match(YTURLPT, search_query)
@@ -112,9 +137,20 @@ async def search_song(msg, search_query, isplayCommand=False):
     }
     if not isplayCommand:
         with YoutubeDL(ydl_opts) as ydl:
-            search_results = ydl.extract_info(f"ytsearch10:{video_id}", download=False)
-            if "entries" not in search_results or len(search_results["entries"]) == 0: return await msg.reply(f"{video_id} <-- 검색 결과가 없습니다!")
-            else: return search_results["entries"]
+            search_results = ydl.extract_info(f"ytsearch10:{search_query}", download=False)
+            if "entries" not in search_results or len(search_results["entries"]) == 0: return await msgReply(msg, f"{search_query} <-- 검색 결과가 없습니다!")
+            else:
+                sr = []
+                for info in search_results["entries"]:
+                    temple = {
+                        "YTID": info.get("id"),
+                        "YTURL": info.get("url"),
+                        "duration": info.get('duration'),
+                        "title": f"{info.get('channel')} - {info.get('title')}",
+                        "thumb": f'https://i.ytimg.com/vi/{info.get("id")}/maxresdefault.jpg'
+                    }
+                    sr.append(temple)
+                return sr
     else:
         with YoutubeDL({'quiet': True}) as ydl: info = ydl.extract_info(video_id, download=False)
         auInfo = 0; viInfo = {}
@@ -142,7 +178,7 @@ async def get_playlist_items(msg, list_id):
         with YoutubeDL(ydl_opts) as ydl: result = ydl.extract_info(f"https://www.youtube.com/playlist?list={list_id}", download=False)
         return [{"idx": i, "YTID": e["id"], "YTURL": f"https://youtu.be/{e['id']}", "title": f"{e.get('channel')} - {e.get('title')}", "url": f"https://www.youtube.com/watch?v={e['id']}"} for i, e in enumerate(result.get("entries", [])) if "id" in e]
     except Exception as e:
-        await msg.reply(f"재생목록 불러오기 중 오류 발생: {e}")
+        await msgReply(msg, f"재생목록 불러오기 중 오류 발생: {e}")
         return None
 
 
@@ -154,6 +190,11 @@ async def check_midnight():
         # 0시에 실행할 작업을 여기에 추가
         for i in os.listdir("audio"):
             try: os.remove(f"audio/{i}"); log.info(f"audio/{i} 파일 삭제 완료!")
+            except PermissionError: pass
+            except: exceptionE()
+    elif now.hour == 0 and now.minute == 0 and now.second == 0:
+        for i in [i for i in os.listdir("audio") if i.endswith(".ts")]:
+            try: os.remove(f"audio/{i}"); log.info(f".ts | audio/{i} 파일 삭제 완료!")
             except PermissionError: pass
             except: exceptionE()
 
@@ -187,6 +228,7 @@ async def on_message_edit(before, after): #수정 메시지 감지
 
 @bot.event
 async def on_message(msg, isEdited=False):
+    if isinstance(msg.channel, discord.DMChannel) and msg.author == bot.user and msg.content.startswith("```py"): return #에러로그전송 로깅 제외
     if not isEdited:
         chatLog = f"Server:{msg.guild} | Channel:{msg.channel} | User: {msg.author} | Message:{msg.content}"
         log.chat(chatLog)
@@ -195,24 +237,24 @@ async def on_message(msg, isEdited=False):
 
     if msg.content.startswith(f"{prefix}play ") or msg.content.startswith(f"{prefix}p "):
         if len(msg.content.split()) > 1: url = msg.content.split()[1]
-        else: return await msg.reply(f"재생할 YouTube 링크를 입력해주세요! 예: `{prefix}play [YouTube URL]`")
+        else: return await msgReply(msg, f"재생할 YouTube 링크를 입력해주세요! 예: `{prefix}play [YouTube URL]`")
         YTURLPT = r"(https?://)?(www\.)?(m\.)?(youtube\.com/(watch\?v=|shorts/)|youtu\.be/)(?P<video_id>[\w-]{11})"
-        if not re.match(YTURLPT, url): return await msg.reply(f"유효한 YouTube 링크를 입력해주세요! 예: `{prefix}play [YouTube URL]`")
+        if not re.match(YTURLPT, url): return await msgReply(msg, f"유효한 YouTube 링크를 입력해주세요! 예: `{prefix}play [YouTube URL]`")
         if msg.guild.id not in queues: queues[msg.guild.id] = []
-        else: await msg.reply(f"{len(queues[msg.guild.id]) + 1}번 | 대기열 추가 완료!")
+        else: await msgReply(msg, f"{len(queues[msg.guild.id]) + 1}번 | 대기열 추가 완료!")
         si = await search_song(msg, url, isplayCommand = True)
         queues[msg.guild.id].append([msg, si]) #queues
         return await play_song(msg)
 
     if msg.content.startswith(f"{prefix}playlist ") or msg.content.startswith(f"{prefix}pl "):
         if len(msg.content.split()) > 1: url = msg.content.split()[1]
-        else: return await msg.reply(f"재생할 YouTube 링크를 입력해주세요! 예: `{prefix}playlist [YouTube URL]`")
+        else: return await msgReply(msg, f"재생할 YouTube 링크를 입력해주세요! 예: `{prefix}playlist [YouTube URL]`")
         YTURLPT = r"(https?://)?(www\.)?(m\.)?(youtube\.com/(watch\?v=|shorts/)|youtu\.be/)(?P<video_id>[\w-]{11})(?:&list=(?P<list_id>[\w-]+))?"
         match = re.match(YTURLPT, url)
         if not match:
             YTURLPT = r"(?:https?://)?(?:www\.)?(m\.)?youtube\.com/playlist\?list=(?P<list_id>[\w-]+)"
             match = re.match(YTURLPT, url)
-            if not match: return await msg.reply(f"유효한 YouTube 링크를 입력해주세요! 예: `{prefix}playlist [YouTube URL]`")
+            if not match: return await msgReply(msg, f"유효한 YouTube 링크를 입력해주세요! 예: `{prefix}playlist [YouTube URL]`")
             video_id = None; list_id = match.group("list_id")
         else: video_id = match.group("video_id"); list_id = match.group("list_id")
 
@@ -225,7 +267,7 @@ async def on_message(msg, isEdited=False):
             si = await search_song(msg, d["url"], isplayCommand = True)
             queues[msg.guild.id].append([msg, si]) #queues
             if i == 0:
-                plmsg = await msg.reply(f"{i + 1}/{d['idx'] + 1}/{len(playlist)}번 | {d['title']} | 대기열 추가 완료!")
+                plmsg = await msgReply(msg, f"{i + 1}/{d['idx'] + 1}/{len(playlist)}번 | {d['title']} | 대기열 추가 완료!")
                 await play_song(msg)
             await plmsg.edit(content=f"{i + 1}/{d['idx'] + 1}/{len(playlist)}번 | {d['title']} | 대기열 추가 완료!")
         return
@@ -233,37 +275,37 @@ async def on_message(msg, isEdited=False):
     if msg.content == f"{prefix}pause":
         voice_client = discord.utils.get(bot.voice_clients, guild=msg.guild)
         if voice_client and voice_client.is_playing(): return voice_client.pause()
-        else: return await msg.reply("재생 중인 음악이 없습니다!")
+        else: return await msgReply(msg, "재생 중인 음악이 없습니다!")
 
     if msg.content == f"{prefix}resume" or msg.content == f"{prefix}r":
         voice_client = discord.utils.get(bot.voice_clients, guild=msg.guild)
         if voice_client and voice_client.is_paused(): return voice_client.resume()
-        else: return await msg.reply("일시정지된 음악이 없습니다!")
+        else: return await msgReply(msg, "일시정지된 음악이 없습니다!")
 
     if msg.content == f"{prefix}stop":
         voice_client = discord.utils.get(bot.voice_clients, guild=msg.guild)
         if voice_client and voice_client.is_connected(): queues[msg.guild.id] = []; return await voice_client.disconnect()
-        else: return await msg.reply("봇이 음성 채널에 연결되어 있지 않습니다.")
+        else: return await msgReply(msg, "봇이 음성 채널에 연결되어 있지 않습니다.")
 
     if msg.content == f"{prefix}skip" or msg.content == f"{prefix}s":
         voice_client = discord.utils.get(bot.voice_clients, guild=msg.guild)
         if voice_client: return voice_client.stop()
-        else: return await msg.reply("재생 중인 음악이 없습니다.")
+        else: return await msgReply(msg, "재생 중인 음악이 없습니다.")
     if msg.content.startswith(f"{prefix}skip ") or msg.content.startswith(f"{prefix}s "):
         try:
             num = int(msg.content.split()[1])
-            if not queues.get(msg.guild.id): return await msg.reply("재생 중인 음악이 없습니다.")
-            elif len(queues[msg.guild.id]) < num or num <= 0: return await msg.reply(f"대기열에 {num}번은 존재하지 않습니다. (1~{len(queues[msg.guild.id])})")
+            if not queues.get(msg.guild.id): return await msgReply(msg, "재생 중인 음악이 없습니다.")
+            elif len(queues[msg.guild.id]) < num or num <= 0: return await msgReply(msg, f"대기열에 {num}번은 존재하지 않습니다. (1~{len(queues[msg.guild.id])})")
             d = queues[msg.guild.id].pop(num - 1)
-            await msg.reply(f"Removed | {num}. {d[1]['title']} ({culc_length(d[1]['duration'])}) [Youtube]({d[1]['YTURL']})")
+            await msgReply(msg, f"Removed | {num}. {d[1]['title']} ({culc_length(d[1]['duration'])}) [Youtube]({d[1]['YTURL']})")
             msg.content = f"{prefix}q"; return await on_message(msg, isEdited=True)
-        except ValueError: return await msg.reply(f"숫자를 입력해주세요! 예: `{prefix}skip 2`")
-        except: return await msg.reply(f"에러 발생!\n{exceptionE()}")
+        except ValueError: return await msgReply(msg, f"숫자를 입력해주세요! 예: `{prefix}skip 2`")
+        except: return await msgReply(msg, f"에러 발생!\n{exceptionE()}")
     if msg.content.startswith(f"{prefix}skipto ") or msg.content.startswith(f"{prefix}st "):
         try:
             num = int(msg.content.split()[1])
-            if not queues.get(msg.guild.id): return await msg.reply("재생 중인 음악이 없습니다.")
-            elif len(queues[msg.guild.id]) < num or num <= 0: return await msg.reply(f"대기열에 {num}번 까지 존재하지 않습니다. (1~{len(queues[msg.guild.id])})")
+            if not queues.get(msg.guild.id): return await msgReply(msg, "재생 중인 음악이 없습니다.")
+            elif len(queues[msg.guild.id]) < num or num <= 0: return await msgReply(msg, f"대기열에 {num}번 까지 존재하지 않습니다. (1~{len(queues[msg.guild.id])})")
             embed = discord.Embed(
                 title="삭제된 대기열",
                 color=0xFF0000
@@ -274,25 +316,25 @@ async def on_message(msg, isEdited=False):
                 d = queues[msg.guild.id].pop(0); embed.add_field(name=f"Removed | {i+1}. {d[1]['title']} ({culc_length(d[1]['duration'])})", value=f"[Youtube]({d[1]['YTURL']})", inline=False)
             embed.timestamp = msg.created_at
             embed.set_footer(text=f"Made By {BotOwner.name}", icon_url=BotOwner.avatar.url)
-            await msg.reply(embed=embed)
+            await msgReply(msg, embed=embed)
             msg.content = f"{prefix}q"; return await on_message(msg, isEdited=True)
-        except ValueError: return await msg.reply(f"숫자를 입력해주세요! 예: `{prefix}skipto 2`")
-        except: return await msg.reply(f"에러 발생!\n{exceptionE()}")
+        except ValueError: return await msgReply(msg, f"숫자를 입력해주세요! 예: `{prefix}skipto 2`")
+        except: return await msgReply(msg, f"에러 발생!\n{exceptionE()}")
 
     if msg.content == f"{prefix}np":
         voice_client = discord.utils.get(bot.voice_clients, guild=msg.guild)
-        if not voice_client or not voice_client.is_playing(): return await msg.reply("현재 재생 중인 음악이 없습니다!")
+        if not voice_client or not voice_client.is_playing(): return await msgReply(msg, "현재 재생 중인 음악이 없습니다!")
         d = NP[msg.guild.id]
         now = culc_length(time() - NP[msg.guild.id][2])
         total = culc_length(int(d[1]['duration']))
-        msg = await msg.reply(f"{d[1]['title']} | {now}/{total} | [Youtube]({d[1]['YTURL']})")
+        msg = await msgReply(msg, f"{d[1]['title']} | {now}/{total} | [Youtube]({d[1]['YTURL']})")
         while time() - NP[msg.guild.id][2] <= d[1]['duration'] and voice_client.is_playing():
             now = culc_length(time() - NP[msg.guild.id][2])
             await msg.edit(content=f"{d[1]['title']} | {now}/{total} | [Youtube]({d[1]['YTURL']})")
             await asyncio.sleep(1)
 
     if msg.content == f"{prefix}queue" or msg.content == f"{prefix}q":
-        if msg.guild.id not in queues or len(queues[msg.guild.id]) == 0: return await msg.reply("현재 대기열에 음악이 없습니다!")
+        if msg.guild.id not in queues or len(queues[msg.guild.id]) == 0: return await msgReply(msg, "현재 대기열에 음악이 없습니다!")
         embed = discord.Embed(
             title="현재 대기열",
             color=0xFF0000
@@ -303,82 +345,82 @@ async def on_message(msg, isEdited=False):
             embed.add_field(name=f"{i+1}. {d[1]['title']} ({culc_length(d[1]['duration'])})", value=f"[Youtube]({d[1]['YTURL']})", inline=False)
         embed.timestamp = msg.created_at
         embed.set_footer(text=f"Made By {BotOwner.name}", icon_url=BotOwner.avatar.url)
-        await msg.reply(embed=embed)
+        await msgReply(msg, embed=embed)
 
     if msg.content == f"{prefix}volume" or msg.content == f"{prefix}v":
         voice_client = discord.utils.get(bot.voice_clients, guild=msg.guild)
-        if not voice_client or not voice_client.is_playing(): return await msg.reply("현재 재생 중인 음악이 없습니다!")
-        return await msg.reply(f"{voice_client.source.volume * 100}%")
+        if not voice_client or not voice_client.is_playing(): return await msgReply(msg, "현재 재생 중인 음악이 없습니다!")
+        return await msgReply(msg, f"{voice_client.source.volume * 100}%")
     if msg.content.startswith(f"{prefix}volume ") or msg.content.startswith(f"{prefix}v "):
         try:
             volume = int(msg.content.split()[1])
-            if volume < 0 or volume > 100: return await msg.reply("볼륨은 0에서 100 사이로 설정해주세요!")
+            if volume < 0 or volume > 100: return await msgReply(msg, "볼륨은 0에서 100 사이로 설정해주세요!")
             voice_client = discord.utils.get(bot.voice_clients, guild=msg.guild)
-            if not voice_client or not voice_client.is_playing() or not SVOL.get(msg.guild.id): return await msg.reply("현재 재생 중인 음악이 없습니다!")
+            if not voice_client or not voice_client.is_playing() or not SVOL.get(msg.guild.id): return await msgReply(msg, "현재 재생 중인 음악이 없습니다!")
             SVOL[msg.guild.id] = volume; voice_client.source.volume = volume / 100  # 볼륨 조정
-            return await msg.reply(f"볼륨이 {volume}%로 설정되었습니다!")
-        except (IndexError, ValueError): return await msg.reply(f"볼륨 값을 입력해주세요! 예: `{prefix}volume 20`")
+            return await msgReply(msg, f"볼륨이 {volume}%로 설정되었습니다!")
+        except (IndexError, ValueError): return await msgReply(msg, f"볼륨 값을 입력해주세요! 예: `{prefix}volume 20`")
 
     if msg.content.startswith(f"{prefix}search "):
         sl = []; search_query = msg.content.split(" ", 1)[1]
-        if not search_query: return await msg.reply(f"검색할 음악 제목을 입력해주세요! 예: `{prefix}search [SongName]`")
+        if not search_query: return await msgReply(msg, f"검색할 음악 제목을 입력해주세요! 예: `{prefix}search [SongName]`")
         search_results = await search_song(msg, search_query)
         embed = discord.Embed(
             title=f"검색 결과 : {search_query}",
             color=0xFF0000
         )
         embed.set_author(name=bot.user, icon_url=bot.user.avatar.url)
-        embed.set_thumbnail(url=search_results[1]["thumb"])
+        embed.set_thumbnail(url=search_results[0]["thumb"])
         for i, sr in enumerate(search_results):
             try:
-                sl.append(sr["url"])
-                embed.add_field(name=f"{i+1}. {sr['channel']} - {sr['title']} ({culc_length(sr['duration'])})", value=f"[Youtube]({sr['url']})", inline=False)
+                sl.append(sr["YTURL"])
+                embed.add_field(name=f"{i+1}. {sr['title']} ({culc_length(sr['duration'])})", value=f"[Youtube]({sr['YTURL']})", inline=False)
             except: exceptionE(i+1)
         embed.add_field(name=f"0. 검색취소", value=f"{search_query} 검색을 취소합니다. (또는 30초 경과시 자동 취소됨)", inline=False)
         embed.timestamp = msg.created_at
         embed.set_footer(text=f"Made By {BotOwner.name}", icon_url=BotOwner.avatar.url)
-        srmsg = await msg.reply(embed=embed)
+        srmsg = await msgReply(msg, embed=embed)
 
         def ucs(m): return m.author == msg.author and m.content.isdigit() and 0 <= int(m.content) <= 10
         try:
             umsg = await bot.wait_for("message", timeout=30, check=ucs) #곡 번호 선택 대기
             idx = int(umsg.content) - 1
             if idx == -1: await srmsg.delete(); await umsg.delete(); return
-            si = await search_song(msg, search_results[idx]["url"], isplayCommand=True)
-            await srmsg.reply(f"선택된 곡: [{si['title']}]({si['YTURL']})\n대기열에 추가되었습니다."); await srmsg.delete(); await umsg.delete()
+            si = await search_song(msg, search_results[idx]["YTURL"], isplayCommand=True)
+            await srmsgReply(msg, f"선택된 곡: [{si['title']}]({si['YTURL']})\n대기열에 추가되었습니다."); await srmsg.delete(); await umsg.delete()
             if msg.guild.id not in queues: queues[msg.guild.id] = []
             queues[msg.guild.id].append([msg, si]) #queues
             return await play_song(msg)
-        except asyncio.TimeoutError: await msg.reply("곡 선택 시간이 초과되었습니다. 다시 시도해주세요!"); await srmsg.delete(); return
+        except asyncio.TimeoutError: await msgReply(msg, "곡 선택 시간이 초과되었습니다. 다시 시도해주세요!"); await srmsg.delete(); return
 
     if msg.content == f"{prefix}shuffle":
         random.shuffle(queues[msg.guild.id])
         msg.content = f"{prefix}q"; return await on_message(msg, isEdited=True)
     
     if msg.content.startswith(f"{prefix}move ") or msg.content.startswith(f"{prefix}mv "):
-        if len(msg.content.split()) < 3: return await msg.reply(f"대상과 위치를 둘 다 입력해주세요! 예: `{prefix}move 2 4`")
+        if len(msg.content.split()) < 3: return await msgReply(msg, f"대상과 위치를 둘 다 입력해주세요! 예: `{prefix}move 2 4`")
         _, tar, loc = msg.content.split(" ")
         try:
             tar = int(tar); loc = int(loc)
-            if tar == loc: return await msg.reply(f"{tar} == {loc} | 이동 대상이 같은 위치로 이동함에 따라 스킵함")
-            if len(queues[msg.guild.id]) < max(tar, loc) or min(tar, loc) <= 0: return await msg.reply(f"대기열에 {tar} or {loc}번 까지 존재하지 않습니다. (1~{len(queues[msg.guild.id])})")
+            if tar == loc: return await msgReply(msg, f"{tar} == {loc} | 이동 대상이 같은 위치로 이동함에 따라 스킵함")
+            if len(queues[msg.guild.id]) < max(tar, loc) or min(tar, loc) <= 0: return await msgReply(msg, f"대기열에 {tar} or {loc}번 까지 존재하지 않습니다. (1~{len(queues[msg.guild.id])})")
             queues[msg.guild.id].insert(loc-1, queues[msg.guild.id].pop(tar-1))
             msg.content = f"{prefix}q"; return await on_message(msg, isEdited=True)
-        except ValueError: return await msg.reply(f"숫자를 입력해주세요! 예: `{prefix}move 2 4`")
-        except: return await msg.reply(f"에러 발생!\n{exceptionE()}")
+        except ValueError: return await msgReply(msg, f"숫자를 입력해주세요! 예: `{prefix}move 2 4`")
+        except: return await msgReply(msg, f"에러 발생!\n{exceptionE()}")
 
     if msg.content == f"{prefix}loop" or msg.content == f"{prefix}l":
         if not SLOOP.get(msg.guild.id): SLOOP[msg.guild.id] = None
         SLOOP[msg.guild.id] = not SLOOP[msg.guild.id]
         if SLOOP[msg.guild.id]: d = NP[msg.guild.id]; npmsg = f"\n\n{d[1]['title']} ({culc_length(d[1]['duration'])}) [Youtube]({d[1]['YTURL']})"
         else: npmsg = ""
-        await msg.reply(f"loop = {SLOOP[msg.guild.id]}{npmsg}")
+        await msgReply(msg, f"loop = {SLOOP[msg.guild.id]}{npmsg}")
 
     if msg.content == f"{prefix}lyrics" or msg.content == f"{prefix}ly":
         genius = lyricsgenius.Genius(GENIUSAccessToken)
-        song = genius.search_song(NP[msg.guild.id][2]['title'])
-        ly = song.lyrics if song else f"title : `{NP[msg.guild.id][2]['title']}`\n\n가사를 찾을 수 없습니다."
-        await msg.reply(ly)
+        song = genius.search_song(NP[msg.guild.id][1]['title'])
+        ly = song.lyrics if song else f"title : `{NP[msg.guild.id][1]['title']}`\n\n가사를 찾을 수 없습니다."
+        await msgReply(msg, ly)
 
     if msg.content == f"{prefix}help" or msg.content == f"{prefix}h":
         embed = discord.Embed(
@@ -411,13 +453,13 @@ async def on_message(msg, isEdited=False):
 
         embed.timestamp = msg.created_at
         embed.set_footer(text=f"Made By {BotOwner.name}", icon_url=BotOwner.avatar.url)
-        return await msg.reply(embed=embed)
+        return await msgReply(msg, embed=embed)
 
     if msg.content.startswith(f"{prefix}clear"):
-        if not msg.author.guild_permissions.manage_messages: return await msg.reply("권한이 없습니다.")
+        if not msg.author.guild_permissions.manage_messages: return await msgReply(msg, "권한이 없습니다.")
         try: amount = int(msg.content.split(" ")[1])
         except: amount = 0
-        if amount < 1 or amount > 100: return await msg.reply("1부터 100까지의 숫자만 입력하세요.")
+        if amount < 1 or amount > 100: return await msgReply(msg, "1부터 100까지의 숫자만 입력하세요.")
         await msg.channel.purge(limit=amount + 1)
         #무조건 msg.channel.send 쓰기
         msg = await msg.channel.send(f"{amount}개의 메시지를 삭제했습니다. 이 메시지는 3초 후 삭제됩니다.")
@@ -443,7 +485,7 @@ async def on_message(msg, isEdited=False):
 
         embed.timestamp = msg.created_at
         embed.set_footer(text=f"Made By {BotOwner.name}", icon_url=BotOwner.avatar.url)
-        srmsg = await msg.reply(embed=embed)
+        srmsg = await msgReply(msg, embed=embed)
 
         def ucs(m): return m.author == msg.author and m.content.isdigit()
         try:
@@ -453,15 +495,15 @@ async def on_message(msg, isEdited=False):
             if idx == 0: return
             elif idx == 1: perm = 8; pt = "관리자"
             elif idx == 2: perm = 277028562944; pt = "메시지 전송 및 관리, 음성채팅 연결 및 말하기"
-            return await msg.reply(f"{pt} 권한으로 링크 생성 완료!\nhttps://discord.com/api/oauth2/authorize?client_id={bot.user.id}&permissions={perm}&scope=bot+applications.commands")
-        except asyncio.TimeoutError: await msg.reply("곡 선택 시간이 초과되었습니다. 다시 시도해주세요!"); await srmsg.delete(); return
+            return await msgReply(msg, f"{pt} 권한으로 링크 생성 완료!\nhttps://discord.com/api/oauth2/authorize?client_id={bot.user.id}&permissions={perm}&scope=bot+applications.commands")
+        except asyncio.TimeoutError: await msgReply(msg, "곡 선택 시간이 초과되었습니다. 다시 시도해주세요!"); await srmsg.delete(); return
 
 # Ping 명령어
     if msg.content == f"{prefix}핑" or msg.content == f"{prefix}ping":
         ping = f"서버 핑은 **{round(bot.latency * 1000)}ms** 입니다."; log.info(ping)
-        return await msg.reply(ping)
+        return await msgReply(msg, ping)
 
 # uptime 명령어
-    if msg.content == f"{prefix}uptime" or msg.content == f"{prefix}u": return await msg.reply(f"<t:{st}:F>\n<t:{st}:R>")
+    if msg.content == f"{prefix}uptime" or msg.content == f"{prefix}u": return await msgReply(msg, f"<t:{st}:F>\n<t:{st}:R>")
 
 bot.run(token) #봇을 실행합니다.

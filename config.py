@@ -15,7 +15,9 @@ def conf(filename: str="config.json") -> dict:
                     "DISCORD_BOT_TOKEN": "Make BOT First & GET TO https://discord.com/developers/applications",
                     "PREFIX": "!",
                     "BotOwnerID": "Input_Your_Discord_ID",
-                    "GENIUS_ACCESS_TOKEN": "GET TO https://genius.com/api-clients",
+                    "GENIUS_ACCESS_TOKEN": "GET_TO https://genius.com/api-clients",
+                    "SEND_ERROR_LOG": True,
+                    "REPLY_MENTION": True,
                     "AUDIO_DOWNLOAD": True,
                     "AUDIO_AUTO_REMOVE": False,
                     "MAX_PLAYLIST_SIZE": 20,
@@ -24,4 +26,4 @@ def conf(filename: str="config.json") -> dict:
                 }, indent=2
             )
         )
-        input(f"생성된 {filename} 파일을 수정하세요!"); exit()
+        input(f"생성된 {filename} 파일을 수정하세요!\nEnter 키를 누르면 종료합니다."); exit()
