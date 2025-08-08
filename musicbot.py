@@ -433,23 +433,25 @@ async def on_message(msg, isEdited=False):
         embed.add_field(name=f"{prefix}help (h)", value="명령어를 보여줍니다.")
         embed.add_field(name=f"{prefix}ping", value=f"봇의 서버핑을 보여줍니다.")
         embed.add_field(name=f"{prefix}uptime (u)", value=f"가동 시간 확인")
-        embed.add_field(name=f"{prefix}clear [지울 만큼의 숫자]", value=f"입력받은 개수의 메세지 삭제 (`{prefix}clear` 명령어는 포함하지 않음)")
+        embed.add_field(name=f"{prefix}clear <지울 만큼의 숫자>", value=f"입력받은 개수의 메세지 삭제 (`{prefix}clear` 명령어는 포함하지 않음)")
 
         embed.add_field(name=f"{prefix}loop (l)", value=f"음악 반복을 실행/해제 합니다.")
         embed.add_field(name=f"{prefix}lyrics (ly)", value=f"현재 재생중인 음악의 가사를 가져옵니다.")
-        embed.add_field(name=f"{prefix}move (mv)", value=f"대기열에서 음악을 이동합니다.")
+        embed.add_field(name=f"{prefix}move (mv) <이동할 만큼의 숫자>", value=f"대기열에서 음악을 이동합니다.")
         embed.add_field(name=f"{prefix}np", value=f"현재 재생중인 음악을 표시합니다.")
         embed.add_field(name=f"{prefix}pause", value=f"현재 재생중인 음악을 일시 중지합니다.")
-        embed.add_field(name=f"{prefix}play (p)", value=f"YouTube 에서 음악을 재생합니다.")
-        embed.add_field(name=f"{prefix}playlist (pl)", value=f"YouTube 재생목록에 있는 모든 음악을 재생합니다.")
+        embed.add_field(name=f"{prefix}play (p) <링크>", value=f"YouTube 에서 음악을 재생합니다.")
+        embed.add_field(name=f"{prefix}playlist (pl) <링크>", value=f"YouTube 재생목록에 있는 모든 음악을 재생합니다.")
         embed.add_field(name=f"{prefix}queue (q)", value=f"현재 재생중인 음악과 대기열을 표시합니다.")
         embed.add_field(name=f"{prefix}resume (r)", value=f"현재 재생중인 음악을 재개합니다.")
-        embed.add_field(name=f"{prefix}search", value=f"유튜브에서 검색하고 재생할 음원을 선택합니다.")
+        embed.add_field(name=f"{prefix}search <검색어>", value=f"유튜브에서 검색하고 재생할 음원을 선택합니다.")
         embed.add_field(name=f"{prefix}shuffle", value=f"대기열 섞기")
-        embed.add_field(name=f"{prefix}skip (s)", value=f"현재 재생중인 음악을 넘기거나, 대기열부터 음악을 제거합니다.")
-        embed.add_field(name=f"{prefix}skipto (st)", value=f"설정한 대기열 번호까지 음악을 넘깁니다.")
+        embed.add_field(name=f"{prefix}skip (s) [넘길 숫자]", value=f"현재 재생중인 음악을 넘기거나, 대기열부터 음악을 제거합니다.")
+        embed.add_field(name=f"{prefix}skipto (st) <넘길 만큼의 숫자>", value=f"설정한 대기열 번호까지 음악을 넘깁니다.")
         embed.add_field(name=f"{prefix}stop", value=f"모든 음악을 멈추고 봇의 연결을 끊습니다.")
-        embed.add_field(name=f"{prefix}volume (v)", value=f"현재 재생중인 음악의 볼륨을 설정합니다.")
+        embed.add_field(name=f"{prefix}volume (v) [0~100]", value=f"현재 재생중인 음악의 볼륨을 설정합니다.")
+        embed.add_field(name=f"{prefix}join [음성 채널 ID]", value=f"봇을 음성 채널에 입장시킵니다.")
+        embed.add_field(name=f"{prefix}leave", value=f"봇을 음성 채널에서 퇴장시킵니다.")
 
         embed.timestamp = msg.created_at
         embed.set_footer(text=f"Made By {BotOwner.name}", icon_url=BotOwner.avatar.url)
@@ -467,6 +469,23 @@ async def on_message(msg, isEdited=False):
             await msg.edit(content=f"{amount}개의 메시지를 삭제했습니다. 이 메시지는 {i}초 후 삭제됩니다.")
             await asyncio.sleep(1)
         return await msg.delete()
+    
+    #기능 없이 음챗에만 접속
+    if msg.content == f"{prefix}join":
+        voice_client = discord.utils.get(bot.voice_clients, guild=msg.guild)
+        if voice_client and voice_client.is_connected(): return await msgReply(msg, "이미 음성 채널에 접속해 있어요.")
+        if msg.author.voice: voice_client = await msg.author.voice.channel.connect(reconnect=False)
+        else: return await msgReply(msg, "음성 채널에 먼저 접속해주세요!")
+    if msg.content.startswith(f"{prefix}join "):
+        try: vcID = int(msg.content.split(" ")[1])
+        except: return await msgReply(msg, "숫자로 구성된 음성 채널 ID로 입력하세요!")
+        channel = msg.guild.get_channel(vcID)
+        if channel and isinstance(channel, discord.VoiceChannel): await channel.connect(reconnect=False)
+        else: return await msgReply(msg, f"해당 ID(<#{vcID}>) 의 음성 채널을 찾을 수 없어요.")
+    if msg.content.startswith(f"{prefix}leave"):
+        voice_client = discord.utils.get(bot.voice_clients, guild=msg.guild)
+        if voice_client and voice_client.is_connected(): await voice_client.disconnect()
+        else: return await msgReply(msg, "음성 채널에 접속해 있지 않아요.")
 
 ##/////////////////////////////////////////////////////////////따로뺴둠//////////////////////////////////////////////////////////////##
 
