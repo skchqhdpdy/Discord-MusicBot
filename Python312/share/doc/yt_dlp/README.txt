@@ -93,6 +93,9 @@ Alternatives
   yt-dlp_x86.exe                      Windows (Win8+) standalone x86
                                       (32-bit) binary
 
+  yt-dlp_arm64.exe                    Windows (Win10+) standalone arm64
+                                      (64-bit) binary
+
   yt-dlp_linux                        Linux standalone x64 binary
 
   yt-dlp_linux_armv7l                 Linux standalone armv7l (32-bit)
@@ -101,14 +104,17 @@ Alternatives
   yt-dlp_linux_aarch64                Linux standalone aarch64 (64-bit)
                                       binary
 
-  yt-dlp_win.zip                      Unpackaged Windows executable (no
-                                      auto-update)
+  yt-dlp_win.zip                      Unpackaged Windows (Win8+) x64
+                                      executable (no auto-update)
+
+  yt-dlp_win_x86.zip                  Unpackaged Windows (Win8+) x86
+                                      executable (no auto-update)
+
+  yt-dlp_win_arm64.zip                Unpackaged Windows (Win10+) arm64
+                                      executable (no auto-update)
 
   yt-dlp_macos.zip                    Unpackaged MacOS (10.15+)
                                       executable (no auto-update)
-
-  yt-dlp_macos_legacy                 MacOS (10.9+) standalone x64
-                                      executable
   -----------------------------------------------------------------------
 
 Misc
@@ -193,9 +199,14 @@ install or update to the nightly release before submitting a bug report:
     # To install nightly with pip:
     python3 -m pip install -U --pre "yt-dlp[default]"
 
+When running a yt-dlp version that is older than 90 days, you will see a
+warning message suggesting to update to the latest version. You can
+suppress this warning by adding --no-update to your command or
+configuration file.
+
 DEPENDENCIES
 
-Python versions 3.9+ (CPython) and 3.10+ (PyPy) are supported. Other
+Python versions 3.9+ (CPython) and 3.11+ (PyPy) are supported. Other
 versions and implementations may or may not work correctly.
 
 While all the other dependencies are optional, ffmpeg and ffprobe are
@@ -246,8 +257,8 @@ Metadata
     GPLv2+
 -   AtomicParsley - For --embed-thumbnail in mp4/m4a files when
     mutagen/ffmpeg cannot. Licensed under GPLv2+
--   xattr, pyxattr or setfattr - For writing xattr metadata (--xattr) on
-    Mac and BSD. Licensed under MIT, LGPL2.1 and GPLv2+ respectively
+-   xattr, pyxattr or setfattr - For writing xattr metadata (--xattrs)
+    on Mac and BSD. Licensed under MIT, LGPL2.1 and GPLv2+ respectively
 
 Misc
 
@@ -346,7 +357,7 @@ USAGE AND OPTIONS
 
     yt-dlp [OPTIONS] [--] URL [URL...]
 
-Ctrl+F is your friend :D
+Tip: Use CTRL+F (or Command+F) to search by keywords
 
 General Options:
 
@@ -712,9 +723,9 @@ Filesystem Options:
     --no-part                       Do not use .part files - write directly into
                                     output file
     --mtime                         Use the Last-modified header to set the file
-                                    modification time (default)
+                                    modification time
     --no-mtime                      Do not use the Last-modified header to set
-                                    the file modification time
+                                    the file modification time (default)
     --write-description             Write video description to a .description file
     --no-write-description          Do not write video description (default)
     --write-info-json               Write video metadata to a .info.json file
@@ -1245,16 +1256,16 @@ locations:
     -   /etc/yt-dlp/config.txt
 
 E.g. with the following configuration file, yt-dlp will always extract
-the audio, not copy the mtime, use a proxy and save all videos under
-YouTube directory in your home directory:
+the audio, copy the mtime, use a proxy and save all videos under YouTube
+directory in your home directory:
 
     # Lines starting with # are comments
 
     # Always extract audio
     -x
 
-    # Do not copy the mtime
-    --no-mtime
+    # Copy the mtime
+    --mtime
 
     # Use this proxy
     --proxy 127.0.0.1:3128
@@ -2215,12 +2226,13 @@ youtube
 -   player_client: Clients to extract video data from. The currently
     available clients are web, web_safari, web_embedded, web_music,
     web_creator, mweb, ios, android, android_vr, tv, tv_simply and
-    tv_embedded. By default, tv,ios,web is used, or tv,web is used when
-    authenticating with cookies. The web_music client is added for
-    music.youtube.com URLs when logged-in cookies are used. The
-    web_embedded client is added for age-restricted videos but only
-    works if the video is embeddable. The tv_embedded and web_creator
-    clients are added for age-restricted videos if account
+    tv_embedded. By default, tv,tv_simply,web is used, but
+    tv,web_safari,web is used when authenticating with cookies and
+    tv,web_creator,web is used with premium accounts. The web_music
+    client is added for music.youtube.com URLs when logged-in cookies
+    are used. The web_embedded client is added for age-restricted videos
+    but only works if the video is embeddable. The tv_embedded and
+    web_creator clients are added for age-restricted videos if account
     age-verification is required. Some clients, such as web and
     web_music, require a po_token for their formats to be downloadable.
     Some clients, such as web_creator, will only work with
@@ -2235,13 +2247,16 @@ youtube
     reduce the number of requests needed or avoid some rate-limiting,
     they could cause issues such as missing formats or metadata. See
     #860 and #12826 for more details
+-   webpage_skip: Skip extraction of embedded webpage data. One or both
+    of player_response, initial_data. These options are for testing
+    purposes and don't skip any network requests
 -   player_params: YouTube player parameters to use for player requests.
     Will overwrite any default ones set by yt-dlp.
 -   player_js_variant: The player javascript variant to use for
     signature and nsig deciphering. The known variants are: main, tce,
-    tv, tv_es6, phone, tablet. Only main is recommended as a possible
-    workaround; the others are for debugging purposes. The default is to
-    use what is prescribed by the site, and can be selected with actual
+    tv, tv_es6, phone, tablet. The default is main, and the others are
+    for debugging purposes. You can use actual to go with what is
+    prescribed by the site
 -   comment_sort: top or new (default) - choose comment sorting mode (on
     YouTube's side)
 -   max_comments: Limit the amount of comments to gather.
@@ -2283,6 +2298,9 @@ youtube
     requires one for the given context), never (never fetch a PO Token),
     or auto (default; only fetch a PO Token if the client requires one
     for the given context)
+-   playback_wait: Duration (in seconds) to wait inbetween the
+    extraction and download stages in order to ensure the formats are
+    available. The default is 6 seconds
 
 youtubepot-webpo
 
@@ -2460,6 +2478,19 @@ tver
 
 -   backend: Backend API to use for extraction - one of streaks
     (default) or brightcove (deprecated)
+
+vimeo
+
+-   client: Client to extract video data from. The currently available
+    clients are android, ios, and web. Only one client can be used. The
+    web client is used by default. The web client only works with
+    account cookies or login credentials. The android and ios clients
+    only work with previously cached OAuth tokens
+-   original_format_policy: Policy for when to try extracting original
+    formats. One of always, never, or auto. The default auto policy
+    tries to avoid exceeding the web client's API rate-limit by only
+    making an extra request when Vimeo publicizes the video's
+    downloadability
 
 Note: These options may be changed/removed in the future without concern
 for backward compatibility
@@ -2965,6 +2996,9 @@ and youtube-dlc:
 -   The sub-modules swfinterp, casefold are removed.
 -   Passing --simulate (or calling extract_info with download=False) no
     longer alters the default format selection. See #9843 for details.
+-   yt-dlp no longer applies the server modified time to downloaded
+    files by default. Use --mtime or --compat-options mtime-by-default
+    to revert this.
 
 For ease of use, a few more compat options are available:
 
@@ -2978,8 +3012,8 @@ For ease of use, a few more compat options are available:
 -   --compat-options 2022: Same as
     --compat-options 2023,playlist-match-filter,no-external-downloader-progress,prefer-legacy-http-handler,manifest-filesize-approx
 -   --compat-options 2023: Same as --compat-options 2024,prefer-vp9-sort
--   --compat-options 2024: Currently does nothing. Use this to enable
-    all future compat options
+-   --compat-options 2024: Same as --compat-options mtime-by-default.
+    Use this to enable all future compat options
 
 The following compat options restore vulnerable behavior from before
 security patches:
@@ -3082,7 +3116,6 @@ These are aliases that are no longer documented for various reasons
     --dump-headers                   --print-traffic
     --dump-intermediate-pages        --dump-pages
     --force-write-download-archive   --force-write-archive
-    --load-info                      --load-info-json
     --no-clean-infojson              --no-clean-info-json
     --no-split-tracks                --no-split-chapters
     --no-write-srt                   --no-write-subs
