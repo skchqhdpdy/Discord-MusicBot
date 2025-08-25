@@ -32,7 +32,7 @@ BotOwnerID = conf["BotOwnerID"]
 SendErrorLog= conf["SEND_ERROR_LOG"]
 ReplyMention= conf["REPLY_MENTION"]
 
-if not os.path.isdir("audio"): os.mkdir("audio") #os.system("rd /s /q audio"); os.mkdir("audio")
+if not os.path.isdir("data"): os.mkdir("data") #os.system("rd /s /q data"); os.mkdir("data")
 intents = discord.Intents.default()
 intents.typing = intents.presences = False
 intents.messages = intents.message_content = intents.guild_messages = intents.members = intents.guilds = intents.guild_messages = intents.voice_states = True
