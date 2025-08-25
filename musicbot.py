@@ -77,7 +77,7 @@ def check_queue(omsg, loopd=None):
                     asyncio.run_coroutine_threadsafe(voice_client.disconnect(), bot.loop)
         asyncio.run_coroutine_threadsafe(handle_song_selection(omsg), bot.loop)
 async def play_song(msg):
-    if not os.path.isdir("audio"): os.mkdir("audio")
+    if not os.path.isdir("data"): os.mkdir("data")
     voice_client = discord.utils.get(bot.voice_clients, guild=msg.guild)
     if not voice_client: #봇이 음성 채널에 연결되지 않았다면 연결
         if msg.author.voice: voice_client = await msg.author.voice.channel.connect()
@@ -87,22 +87,22 @@ async def play_song(msg):
     if not voice_client.is_playing():
         d = queues[msg.guild.id].pop(0); NP[msg.guild.id] = d + [0]
         ydl_opts = {
-            'cookiesfrombrowser': ('firefox',),
             "nocheckcertificate": True,
             'format': d[1]["auInfo"],
-            'outtmpl': f'audio/{d[1]["YTID"]}',
+            'outtmpl': f'data/{d[1]["YTID"]}',
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
                 'preferredquality': '192',
             }],
-            'quiet': False
+            'quiet': False,
+            'cookiesfrombrowser': ('firefox',)
         }
-        surl = f"audio/{d[1]['YTID']}.mp3"; before_options = ""
+        surl = f"data/{d[1]['YTID']}.mp3"; before_options = ""
         if os.path.isfile(surl): log.info(f"{surl} 파일 존재함!")
         elif os.path.isfile(surl.replace(".mp3", ".ts")): surl = surl.replace(".mp3", ".ts"); log.info(f"{surl} 파일 존재함!")
         else:
-            with YoutubeDL({'format': d[1]["auInfo"], 'quiet': True}) as ydl: info = ydl.extract_info(d[1]["YTID"], download=False)
+            with YoutubeDL({'format': d[1]["auInfo"], 'quiet': True, 'cookiesfrombrowser': ('firefox',)}) as ydl: info = ydl.extract_info(d[1]["YTID"], download=False)
             surl = info["url"]; before_options="-protocol_whitelist file,http,https,tcp,tls,crypto -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 1"
             def dlsong():
                 try:
@@ -115,7 +115,7 @@ async def play_song(msg):
                     for u in m3u8.text.split("\n"):
                         if u.startswith("http"): u = rqso.get(u, headers={"Range": "bytes=0-"}, timeout=5, verify=False); ts += u.content
                     if ts:
-                        with open(f"audio/{d[1]['YTID']}.ts", 'wb') as f: f.write(ts); log.debug(f"{d[1]['YTID']} 수동 다운로드 완료! | {round(time() - st, 2)} Sec")
+                        with open(f"data/{d[1]['YTID']}.ts", 'wb') as f: f.write(ts); log.debug(f"{d[1]['YTID']} 수동 다운로드 완료! | {round(time() - st, 2)} Sec")
                     else: asyncio.run_coroutine_threadsafe(sendErrorLog(msg, dmsg=".ts 수동 다운로드도 실패함"), bot.loop)
             if isDLSong: threading.Thread(target=dlsong).start()
         voice_client.play(
@@ -123,7 +123,7 @@ async def play_song(msg):
             after=lambda e: check_queue(msg, d) if not e else msgReply(msg, f"ERROR!\n\n{e}")
         )
         NP[msg.guild.id][2] = time()
-        if not SLOOP.get(msg.guild.id): return await msgReply(msg, f"재생 중: [{d[1]['title']}]({d[1]['YTURL']}) ({culc_length(d[1]['duration'])}) \n[다운로드](https://youtube11.com/{d[1]['YTID']})")
+        if not SLOOP.get(msg.guild.id): return await msgReply(msg, f"재생 중: [{d[1]['title']}]({d[1]['YTURL']}) ({culc_length(d[1]['duration'])})")
 async def search_song(msg, search_query, isplayCommand=False):
     YTURLPT = r"(https?://)?(www\.)?(m\.)?(youtube\.com/(watch\?v=|shorts/)|youtu\.be/)(?P<video_id>[\w-]{11})(?:&list=(?P<list_id>[\w-]+))?"
     match = re.match(YTURLPT, search_query)
@@ -133,7 +133,8 @@ async def search_song(msg, search_query, isplayCommand=False):
         "nocheckcertificate": True,
         "noplaylist": True,
         "quiet": True,
-        "extract_flat": True
+        "extract_flat": True,
+        'cookiesfrombrowser': ('firefox',)
     }
     if not isplayCommand:
         with YoutubeDL(ydl_opts) as ydl:
@@ -152,11 +153,11 @@ async def search_song(msg, search_query, isplayCommand=False):
                     sr.append(temple)
                 return sr
     else:
-        with YoutubeDL({'quiet': True}) as ydl: info = ydl.extract_info(video_id, download=False)
+        with YoutubeDL({'quiet': True, 'cookiesfrombrowser': ('firefox',)}) as ydl: info = ydl.extract_info(video_id, download=False)
         auInfo = 0; viInfo = {}
         for i in info.get('formats', []):
-            if i["audio_ext"] == "mp4": auInfo = i['format_id']
-            elif i["video_ext"] == "mp4": viInfo[str(i["height"])] = i["format_id"]
+            if   i["acodec"] != "none" and i["vcodec"] == "none": auInfo = i['format_id']
+            elif i["acodec"] == "none" and i["vcodec"] != "none": viInfo[str(i["height"])] = i["format_id"]
         return {
             "YTID": video_id,
             "YTURL": f"https://youtu.be/{video_id}",
@@ -173,6 +174,7 @@ async def get_playlist_items(msg, list_id):
         "dump_single_json": True,
         "quiet": True,
         "extract_flat": True,
+        'cookiesfrombrowser': ('firefox',)
     }
     try:
         with YoutubeDL(ydl_opts) as ydl: result = ydl.extract_info(f"https://www.youtube.com/playlist?list={list_id}", download=False)
@@ -189,12 +191,12 @@ async def check_midnight():
     if AAR and now.hour == 0 and now.minute == 0 and now.second == 0:
         # 0시에 실행할 작업을 여기에 추가
         for i in os.listdir("audio"):
-            try: os.remove(f"audio/{i}"); log.info(f"audio/{i} 파일 삭제 완료!")
+            try: os.remove(f"data/{i}"); log.info(f"data/{i} 파일 삭제 완료!")
             except PermissionError: pass
             except: exceptionE()
     elif now.hour == 0 and now.minute == 0 and now.second == 0:
         for i in [i for i in os.listdir("audio") if i.endswith(".ts")]:
-            try: os.remove(f"audio/{i}"); log.info(f".ts | audio/{i} 파일 삭제 완료!")
+            try: os.remove(f"data/{i}"); log.info(f".ts | data/{i} 파일 삭제 완료!")
             except PermissionError: pass
             except: exceptionE()
 
