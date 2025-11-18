@@ -31,8 +31,9 @@ MPS = conf["MAX_PLAYLIST_SIZE"]
 stay_time = conf["STAY_TIME"]
 vol = conf["DEFAULT_VOLUME"]
 BotOwnerID = conf["BotOwnerID"]
-SendErrorLog= conf["SEND_ERROR_LOG"]
-ReplyMention= conf["REPLY_MENTION"]
+SendErrorLog = conf["SEND_ERROR_LOG"]
+ReplyMention = conf["REPLY_MENTION"]
+useFirefoxCookie = conf["USE_FIREFOX_COOKIE"]
 
 if not os.path.isdir("data"): os.mkdir("data") #os.system("rd /s /q data"); os.mkdir("data")
 intents = discord.Intents.default()
@@ -98,7 +99,7 @@ async def play_song(msg):
                 'preferredquality': '192',
             }],
             'quiet': False,
-            'cookiesfrombrowser': ('firefox',),
+            'cookiesfrombrowser': ('firefox',) if useFirefoxCookie else None,
             'js_runtimes': {'deno': {'path': 'ejs/deno.exe'}}
         }
         surl = f"data/{d[1]['YTID']}.mp3"; before_options = ""
@@ -108,7 +109,7 @@ async def play_song(msg):
             ydl_opts2 = {
                 'format': d[1]["auInfo"],
                 'quiet': True,
-                'cookiesfrombrowser': ('firefox',),
+                'cookiesfrombrowser': ('firefox',) if useFirefoxCookie else None,
                 'js_runtimes': {'deno': {'path': 'ejs/deno.exe'}}
             }
             with YoutubeDL(ydl_opts2) as ydl: info = ydl.extract_info(d[1]["YTID"], download=False)
@@ -143,7 +144,7 @@ async def search_song(msg, search_query, isplayCommand=False):
         "noplaylist": True,
         "quiet": True,
         "extract_flat": True,
-        'cookiesfrombrowser': ('firefox',),
+        'cookiesfrombrowser': ('firefox',) if useFirefoxCookie else None,
         'js_runtimes': {'deno': {'path': 'ejs/deno.exe'}}
     }
     if not isplayCommand:
@@ -165,7 +166,7 @@ async def search_song(msg, search_query, isplayCommand=False):
     else:
         ydl_opts2 = {
             'quiet': True,
-            'cookiesfrombrowser': ('firefox',),
+            'cookiesfrombrowser': ('firefox',) if useFirefoxCookie else None,
             'js_runtimes': {'deno': {'path': 'ejs/deno.exe'}}
         }
         with YoutubeDL(ydl_opts2) as ydl: info = ydl.extract_info(video_id, download=False)
@@ -189,7 +190,7 @@ async def get_playlist_items(msg, list_id):
         "dump_single_json": True,
         "quiet": True,
         "extract_flat": True,
-        'cookiesfrombrowser': ('firefox',),
+        'cookiesfrombrowser': ('firefox',) if useFirefoxCookie else None,
         'js_runtimes': {'deno': {'path': 'ejs/deno.exe'}}
     }
     try:
