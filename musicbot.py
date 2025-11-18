@@ -3,8 +3,9 @@ from discord.ext import commands, tasks
 from discord.ext.commands import Bot
 from discord.utils import get
 import json
-import logUtils as log
-from config import conf
+from helpers import logUtils as log
+from helpers.config import conf
+from helpers import getdeno
 import asyncio
 import random
 from time import time, localtime, strftime
@@ -18,6 +19,7 @@ import requests as rqso
 import os
 import threading
 
+getdeno.dl()
 st = int(time())
 conf = conf("config.json")
 token = conf["DISCORD_BOT_TOKEN"]
@@ -96,13 +98,20 @@ async def play_song(msg):
                 'preferredquality': '192',
             }],
             'quiet': False,
-            'cookiesfrombrowser': ('firefox',)
+            'cookiesfrombrowser': ('firefox',),
+            'js_runtimes': {'deno': {'path': 'ejs/deno.exe'}}
         }
         surl = f"data/{d[1]['YTID']}.mp3"; before_options = ""
         if os.path.isfile(surl): log.info(f"{surl} 파일 존재함!")
         elif os.path.isfile(surl.replace(".mp3", ".ts")): surl = surl.replace(".mp3", ".ts"); log.info(f"{surl} 파일 존재함!")
         else:
-            with YoutubeDL({'format': d[1]["auInfo"], 'quiet': True, 'cookiesfrombrowser': ('firefox',)}) as ydl: info = ydl.extract_info(d[1]["YTID"], download=False)
+            ydl_opts2 = {
+                'format': d[1]["auInfo"],
+                'quiet': True,
+                'cookiesfrombrowser': ('firefox',),
+                'js_runtimes': {'deno': {'path': 'ejs/deno.exe'}}
+            }
+            with YoutubeDL(ydl_opts2) as ydl: info = ydl.extract_info(d[1]["YTID"], download=False)
             surl = info["url"]; before_options="-protocol_whitelist file,http,https,tcp,tls,crypto -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 1"
             def dlsong():
                 try:
@@ -134,7 +143,8 @@ async def search_song(msg, search_query, isplayCommand=False):
         "noplaylist": True,
         "quiet": True,
         "extract_flat": True,
-        'cookiesfrombrowser': ('firefox',)
+        'cookiesfrombrowser': ('firefox',),
+        'js_runtimes': {'deno': {'path': 'ejs/deno.exe'}}
     }
     if not isplayCommand:
         with YoutubeDL(ydl_opts) as ydl:
@@ -153,7 +163,12 @@ async def search_song(msg, search_query, isplayCommand=False):
                     sr.append(temple)
                 return sr
     else:
-        with YoutubeDL({'quiet': True, 'cookiesfrombrowser': ('firefox',)}) as ydl: info = ydl.extract_info(video_id, download=False)
+        ydl_opts2 = {
+            'quiet': True,
+            'cookiesfrombrowser': ('firefox',),
+            'js_runtimes': {'deno': {'path': 'ejs/deno.exe'}}
+        }
+        with YoutubeDL(ydl_opts2) as ydl: info = ydl.extract_info(video_id, download=False)
         auInfo = 0; viInfo = {}
         for i in info.get('formats', []):
             if   i["acodec"] != "none" and i["vcodec"] == "none": auInfo = i['format_id']
@@ -174,7 +189,8 @@ async def get_playlist_items(msg, list_id):
         "dump_single_json": True,
         "quiet": True,
         "extract_flat": True,
-        'cookiesfrombrowser': ('firefox',)
+        'cookiesfrombrowser': ('firefox',),
+        'js_runtimes': {'deno': {'path': 'ejs/deno.exe'}}
     }
     try:
         with YoutubeDL(ydl_opts) as ydl: result = ydl.extract_info(f"https://www.youtube.com/playlist?list={list_id}", download=False)
