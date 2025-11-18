@@ -17,11 +17,13 @@ import time
 import weakref
 from collections import namedtuple
 from contextlib import suppress
+from email.message import EmailMessage
 from email.parser import HeaderParser
+from email.policy import HTTP
 from email.utils import parsedate
 from math import ceil
 from pathlib import Path
-from types import TracebackType
+from types import MappingProxyType, TracebackType
 from typing import (
     Any,
     Callable,
@@ -355,6 +357,46 @@ def parse_mimetype(mimetype: str) -> MimeType:
     return MimeType(
         type=mtype, subtype=stype, suffix=suffix, parameters=MultiDictProxy(params)
     )
+
+
+class EnsureOctetStream(EmailMessage):
+    def __init__(self) -> None:
+        super().__init__()
+        # https://www.rfc-editor.org/rfc/rfc9110#section-8.3-5
+        self.set_default_type("application/octet-stream")
+
+    def get_content_type(self) -> str:
+        """Re-implementation from Message
+
+        Returns application/octet-stream in place of plain/text when
+        value is wrong.
+
+        The way this class is used guarantees that content-type will
+        be present so simplify the checks wrt to the base implementation.
+        """
+        value = self.get("content-type", "").lower()
+
+        # Based on the implementation of _splitparam in the standard library
+        ctype, _, _ = value.partition(";")
+        ctype = ctype.strip()
+        if ctype.count("/") != 1:
+            return self.get_default_type()
+        return ctype
+
+
+@functools.lru_cache(maxsize=56)
+def parse_content_type(raw: str) -> Tuple[str, MappingProxyType[str, str]]:
+    """Parse Content-Type header.
+
+    Returns a tuple of the parsed content type and a
+    MappingProxyType of parameters. The default returned value
+    is `application/octet-stream`
+    """
+    msg = HeaderParser(EnsureOctetStream, policy=HTTP).parsestr(f"Content-Type: {raw}")
+    content_type = msg.get_content_type()
+    params = msg.get_params(())
+    content_dict = dict(params[1:])  # First element is content type again
+    return content_type, MappingProxyType(content_dict)
 
 
 def guess_filename(obj: Any, default: Optional[str] = None) -> Optional[str]:
@@ -710,10 +752,10 @@ class HeadersMixin:
             self._content_type = "application/octet-stream"
             self._content_dict = {}
         else:
-            msg = HeaderParser().parsestr("Content-Type: " + raw)
-            self._content_type = msg.get_content_type()
-            params = msg.get_params(())
-            self._content_dict = dict(params[1:])  # First element is content type again
+            content_type, content_mapping_proxy = parse_content_type(raw)
+            self._content_type = content_type
+            # _content_dict needs to be mutable so we can update it
+            self._content_dict = content_mapping_proxy.copy()
 
     @property
     def content_type(self) -> str:

@@ -1,0 +1,102 @@
+Metadata-Version: 2.4
+Name: yt-dlp-ejs
+Version: 0.3.1
+Summary: External JavaScript for yt-dlp supporting many runtimes
+Project-URL: Documentation, https://github.com/yt-dlp/ejs#readme
+Project-URL: Issues, https://github.com/yt-dlp/ejs/issues
+Project-URL: Source, https://github.com/yt-dlp/ejs
+Author-email: Simon Sawicki <contact@grub4k.dev>
+License-Expression: Unlicense AND MIT AND ISC
+License-File: LICENSE
+Keywords: yt-dlp
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Programming Language :: Python :: Implementation :: PyPy
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+
+# yt-dlp-ejs
+
+External JavaScript for yt-dlp supporting many runtimes
+
+## Manual Installation
+
+Install ejs into the same environment as yt-dlp:
+
+```console
+pip install -U yt-dlp-ejs
+```
+
+## Development
+
+While this project does pin its dependencies,
+it only provides a lockfile for building with `deno`.
+You may install dependencies using any compatible package manager.
+If you notice differences between different runtimes' builds
+please open an issue [here](<https://github.com/yt-dlp/ejs/issues/new>).
+
+### Build
+
+To build the Python package you need a PEP518 compatible builder.
+The build hook will automatically invoke `deno`, `bun` or `node` as required.
+
+Alternatively, to only build the JavaScript files you can run the `bundle` script manually:
+
+```bash
+# Deno:
+deno install --frozen
+deno task bundle
+
+# Bun:
+bun install
+bun --bun run bundle
+
+# Node:
+npm install
+npm run bundle
+```
+
+### Tests
+
+First, make sure the project's dependencies are installed and download the player JS files:
+
+```bash
+# Deno:
+deno install --frozen
+deno run src/yt/solver/test/download.ts
+
+# Bun:
+bun install
+bun --bun run src/yt/solver/test/download.ts
+
+# Node 22.6+:
+npm install
+node --experimental-strip-types src/yt/solver/test/download.ts
+```
+
+Then the tests can be run:
+
+```bash
+# Deno
+deno test
+
+# Bun
+bun test
+
+# Node
+node --test
+```
+
+## Licensing
+
+This code is licensed under [Unlicense](<https://unlicense.org/>).
+
+An exception to this are the prebuilt wheels, which contain both
+[`meriyah`](<https://github.com/meriyah/meriyah>) and [`astring`](<https://github.com/davidbonnet/astring>),
+licensed under [`ISC`](<https://github.com/meriyah/meriyah?tab=ISC-1-ov-file>) and [`MIT`](<https://github.com/davidbonnet/astring?tab=MIT-1-ov-file>), respectively.
