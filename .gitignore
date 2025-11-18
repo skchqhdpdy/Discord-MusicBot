@@ -2,3 +2,4 @@ __pycache__/
 data/
 config.json
 chatlog.txt
+ejs/deno.exe
