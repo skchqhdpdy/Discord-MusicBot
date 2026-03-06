@@ -158,7 +158,7 @@ Fully extract the videos of a playlist (default)
 .TP
 --live-from-start
 Download livestreams from the start.
-Currently experimental and only supported for YouTube and Twitch
+Currently experimental and only supported for YouTube, Twitch, and TVer
 .TP
 --no-live-from-start
 Download livestreams from the current time (default)
@@ -2752,8 +2752,10 @@ See #860 (https://github.com/yt-dlp/yt-dlp/pull/860) and
 .IP \[bu] 2
 \f[V]webpage_skip\f[R]: Skip extraction of embedded webpage data.
 One or both of \f[V]player_response\f[R], \f[V]initial_data\f[R].
-These options are for testing purposes and don\[aq]t skip any network
-requests
+Using these will not skip any network requests, and in some cases will
+result in additional network requests.
+Currently, the default is \f[V]player_response\f[R]; however, typically
+these are for testing purposes only
 .IP \[bu] 2
 \f[V]player_params\f[R]: YouTube player parameters to use for player
 requests.
@@ -2762,8 +2764,8 @@ Will overwrite any default ones set by yt-dlp.
 \f[V]player_js_variant\f[R]: The player javascript variant to use for
 n/sig deciphering.
 The known variants are: \f[V]main\f[R], \f[V]tcc\f[R], \f[V]tce\f[R],
-\f[V]es5\f[R], \f[V]es6\f[R], \f[V]tv\f[R], \f[V]tv_es6\f[R],
-\f[V]phone\f[R].
+\f[V]es5\f[R], \f[V]es6\f[R], \f[V]es6_tcc\f[R], \f[V]es6_tce\f[R],
+\f[V]tv\f[R], \f[V]tv_es6\f[R], \f[V]phone\f[R], \f[V]house\f[R].
 The default is \f[V]tv\f[R], and the others are for debugging purposes.
 You can use \f[V]actual\f[R] to go with what is prescribed by the site
 .IP \[bu] 2
@@ -2771,8 +2773,8 @@ You can use \f[V]actual\f[R] to go with what is prescribed by the site
 n/sig deciphering, in the format of
 \f[V]signature_timestamp\[at]hash\f[R] (e.g.
 \f[V]20348\[at]0004de42\f[R]).
-The default is to use what is prescribed by the site, and can be
-selected with \f[V]actual\f[R]
+Currently, the default is to force \f[V]20514\[at]9f4cc5e4\f[R].
+You can use \f[V]actual\f[R] to go with what is prescribed by the site
 .IP \[bu] 2
 \f[V]comment_sort\f[R]: \f[V]top\f[R] or \f[V]new\f[R] (default) -
 choose comment sorting mode (on YouTube\[aq]s side)
@@ -2798,9 +2800,9 @@ maximum of 100 replies total
 \f[V]formats\f[R]: Change the types of formats to return.
 \f[V]dashy\f[R] (convert HTTP to DASH), \f[V]duplicate\f[R] (identical
 content but different URLs or protocol; includes \f[V]dashy\f[R]),
-\f[V]incomplete\f[R] (cannot be downloaded completely - live dash and
-post-live m3u8), \f[V]missing_pot\f[R] (include formats that require a
-PO Token but are missing one)
+\f[V]incomplete\f[R] (cannot be downloaded completely - live dash, live
+adaptive https, and post-live m3u8), \f[V]missing_pot\f[R] (include
+formats that require a PO Token but are missing one)
 .IP \[bu] 2
 \f[V]innertube_host\f[R]: Innertube API host to use for all API
 requests; e.g.
@@ -3823,10 +3825,9 @@ See #31 (https://github.com/yt-dlp/yt-dlp/pull/31) for details.
 .IP \[bu] 2
 Supports Clips, Stories (\f[V]ytstories:<channel UCID>\f[R]), Search
 (including filters)\f[B]*\f[R], YouTube Music Search, Channel-specific
-search, Search prefixes (\f[V]ytsearch:\f[R],
-\f[V]ytsearchdate:\f[R])\f[B]*\f[R], Mixes, and Feeds (\f[V]:ytfav\f[R],
-\f[V]:ytwatchlater\f[R], \f[V]:ytsubs\f[R], \f[V]:ythistory\f[R],
-\f[V]:ytrec\f[R], \f[V]:ytnotif\f[R])
+search, Search prefix (\f[V]ytsearch:\f[R])\f[B]*\f[R], Mixes, and Feeds
+(\f[V]:ytfav\f[R], \f[V]:ytwatchlater\f[R], \f[V]:ytsubs\f[R],
+\f[V]:ythistory\f[R], \f[V]:ytrec\f[R], \f[V]:ytnotif\f[R])
 .IP \[bu] 2
 Fix for n-sig based
 throttling (https://github.com/ytdl-org/youtube-dl/issues/29326)

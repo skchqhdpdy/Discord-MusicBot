@@ -23,7 +23,7 @@ complete --command yt-dlp --long-option remote-components --description 'Remote 
 complete --command yt-dlp --long-option no-remote-components --description 'Disallow fetching of all remote components, including any previously allowed by --remote-components or defaults.'
 complete --command yt-dlp --long-option flat-playlist --description 'Do not extract a playlist'"'"'s URL result entries; some entry metadata may be missing and downloading may be bypassed'
 complete --command yt-dlp --long-option no-flat-playlist --description 'Fully extract the videos of a playlist (default)'
-complete --command yt-dlp --long-option live-from-start --description 'Download livestreams from the start. Currently experimental and only supported for YouTube and Twitch'
+complete --command yt-dlp --long-option live-from-start --description 'Download livestreams from the start. Currently experimental and only supported for YouTube, Twitch, and TVer'
 complete --command yt-dlp --long-option no-live-from-start --description 'Download livestreams from the current time (default)'
 complete --command yt-dlp --long-option wait-for-video --description 'Wait for scheduled streams to become available. Pass the minimum number of seconds (or range) to wait between retries'
 complete --command yt-dlp --long-option no-wait-for-video --description 'Do not wait for scheduled streams (default)'

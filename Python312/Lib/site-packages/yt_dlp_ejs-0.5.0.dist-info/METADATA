@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: yt-dlp-ejs
-Version: 0.4.0
+Version: 0.5.0
 Summary: External JavaScript for yt-dlp supporting many runtimes
 Project-URL: Documentation, https://github.com/yt-dlp/ejs#readme
 Project-URL: Issues, https://github.com/yt-dlp/ejs/issues
