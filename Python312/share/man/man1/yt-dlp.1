@@ -2715,12 +2715,12 @@ The currently available clients are \f[V]web\f[R], \f[V]web_safari\f[R],
 \f[V]web_embedded\f[R], \f[V]web_music\f[R], \f[V]web_creator\f[R],
 \f[V]mweb\f[R], \f[V]ios\f[R], \f[V]android\f[R], \f[V]android_vr\f[R],
 \f[V]tv\f[R], \f[V]tv_downgraded\f[R], and \f[V]tv_simply\f[R].
-By default, \f[V]android_vr,web,web_safari\f[R] is used.
+By default, \f[V]android_vr,web_safari\f[R] is used.
 If no JavaScript runtime/engine is available, then only
 \f[V]android_vr\f[R] is used.
 If logged-in cookies are passed to yt-dlp, then
-\f[V]tv_downgraded,web,web_safari\f[R] is used for free accounts and
-\f[V]tv_downgraded,web_creator,web\f[R] is used for premium accounts.
+\f[V]tv_downgraded,web_safari\f[R] is used for free accounts and
+\f[V]tv_downgraded,web_creator\f[R] is used for premium accounts.
 The \f[V]web_music\f[R] client is added for \f[V]music.youtube.com\f[R]
 URLs when logged-in cookies are used.
 The \f[V]web_embedded\f[R] client is added for age-restricted videos but
@@ -2737,7 +2737,7 @@ Not all clients support authentication via cookies.
 You can use \f[V]default\f[R] for the default clients, or you can use
 \f[V]all\f[R] for all clients (not recommended).
 You can prefix a client with \f[V]-\f[R] to exclude it, e.g.
-\f[V]youtube:player_client=default,-web\f[R]
+\f[V]youtube:player_client=default,-web_safari\f[R]
 .IP \[bu] 2
 \f[V]player_skip\f[R]: Skip some network requests that are generally
 needed for robust extraction.
@@ -2752,10 +2752,14 @@ See #860 (https://github.com/yt-dlp/yt-dlp/pull/860) and
 .IP \[bu] 2
 \f[V]webpage_skip\f[R]: Skip extraction of embedded webpage data.
 One or both of \f[V]player_response\f[R], \f[V]initial_data\f[R].
-Using these will not skip any network requests, and in some cases will
-result in additional network requests.
-Currently, the default is \f[V]player_response\f[R]; however, typically
-these are for testing purposes only
+These options are for testing purposes and don\[aq]t skip any network
+requests.
+Neither is skipped by default; however, if a \f[V]player_js_version\f[R]
+value other than \f[V]actual\f[R] is used, then
+\f[V]webpage_skip=player_response\f[R] is implied
+.IP \[bu] 2
+\f[V]webpage_client\f[R]: Client to use for the video webpage request.
+One of \f[V]web\f[R] or \f[V]web_safari\f[R] (default)
 .IP \[bu] 2
 \f[V]player_params\f[R]: YouTube player parameters to use for player
 requests.
@@ -2766,15 +2770,17 @@ n/sig deciphering.
 The known variants are: \f[V]main\f[R], \f[V]tcc\f[R], \f[V]tce\f[R],
 \f[V]es5\f[R], \f[V]es6\f[R], \f[V]es6_tcc\f[R], \f[V]es6_tce\f[R],
 \f[V]tv\f[R], \f[V]tv_es6\f[R], \f[V]phone\f[R], \f[V]house\f[R].
-The default is \f[V]tv\f[R], and the others are for debugging purposes.
+The default is \f[V]main\f[R], and the others are for debugging
+purposes.
 You can use \f[V]actual\f[R] to go with what is prescribed by the site
 .IP \[bu] 2
 \f[V]player_js_version\f[R]: The player javascript version to use for
 n/sig deciphering, in the format of
 \f[V]signature_timestamp\[at]hash\f[R] (e.g.
 \f[V]20348\[at]0004de42\f[R]).
-Currently, the default is to force \f[V]20514\[at]9f4cc5e4\f[R].
-You can use \f[V]actual\f[R] to go with what is prescribed by the site
+The default is to use what is prescribed by the site, and can be
+selected with \f[V]actual\f[R].
+Using any other value will imply \f[V]webpage_skip=player_response\f[R]
 .IP \[bu] 2
 \f[V]comment_sort\f[R]: \f[V]top\f[R] or \f[V]new\f[R] (default) -
 choose comment sorting mode (on YouTube\[aq]s side)
@@ -2854,8 +2860,8 @@ Either \f[V]true\f[R] or \f[V]false\f[R] (default)
 mandatory wait period before download.
 Do NOT use this when passing premium account cookies to yt-dlp, as it
 will result in a loss of premium formats.
-Only effective with the \f[V]web\f[R], \f[V]web_safari\f[R],
-\f[V]web_music\f[R] and \f[V]mweb\f[R] player clients.
+Only effective with the \f[V]mweb\f[R] and \f[V]web_music\f[R] player
+clients.
 Either \f[V]true\f[R] or \f[V]false\f[R] (default)
 .SS youtube-ejs
 .IP \[bu] 2
