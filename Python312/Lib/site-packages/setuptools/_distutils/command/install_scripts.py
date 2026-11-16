@@ -16,7 +16,9 @@ from ..core import Command
 class install_scripts(Command):
     description = "install scripts (Python or otherwise)"
 
-    user_options = [
+    user_options: ClassVar[
+        list[tuple[str, str, str]] | list[tuple[str, str | None, str]]
+    ] = [
         ('install-dir=', 'd', "directory to install scripts to"),
         ('build-dir=', 'b', "build directory (where to install from)"),
         ('force', 'f', "force installation (overwrite existing files)"),
@@ -48,12 +50,9 @@ class install_scripts(Command):
             # Set the executable bits (owner, group, and world) on
             # all the scripts we just installed.
             for file in self.get_outputs():
-                if self.dry_run:
-                    log.info("changing mode of %s", file)
-                else:
-                    mode = ((os.stat(file)[ST_MODE]) | 0o555) & 0o7777
-                    log.info("changing mode of %s to %o", file, mode)
-                    os.chmod(file, mode)
+                mode = ((os.stat(file)[ST_MODE]) | 0o555) & 0o7777
+                log.info("changing mode of %s to %o", file, mode)
+                os.chmod(file, mode)
 
     def get_inputs(self):
         return self.distribution.scripts or []

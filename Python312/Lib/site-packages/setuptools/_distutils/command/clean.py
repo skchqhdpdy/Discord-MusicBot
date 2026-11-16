@@ -14,7 +14,9 @@ from ..dir_util import remove_tree
 
 class clean(Command):
     description = "clean up temporary files from 'build' command"
-    user_options = [
+    user_options: ClassVar[
+        list[tuple[str, str, str]] | list[tuple[str, str | None, str]]
+    ] = [
         ('build-base=', 'b', "base build directory [default: 'build.build-base']"),
         (
             'build-lib=',
@@ -55,7 +57,7 @@ class clean(Command):
         # remove the build/temp.<plat> directory (unless it's already
         # gone)
         if os.path.exists(self.build_temp):
-            remove_tree(self.build_temp, dry_run=self.dry_run)
+            remove_tree(self.build_temp)
         else:
             log.debug("'%s' does not exist -- can't clean it", self.build_temp)
 
@@ -63,15 +65,14 @@ class clean(Command):
             # remove build directories
             for directory in (self.build_lib, self.bdist_base, self.build_scripts):
                 if os.path.exists(directory):
-                    remove_tree(directory, dry_run=self.dry_run)
+                    remove_tree(directory)
                 else:
                     log.warning("'%s' does not exist -- can't clean it", directory)
 
         # just for the heck of it, try to remove the base build directory:
         # we might have emptied it right now, but if not we don't care
-        if not self.dry_run:
-            try:
-                os.rmdir(self.build_base)
-                log.info("removing '%s'", self.build_base)
-            except OSError:
-                pass
+        try:
+            os.rmdir(self.build_base)
+            log.info("removing '%s'", self.build_base)
+        except OSError:
+            pass
